@@ -1,0 +1,23 @@
+[lib]
+proc-macro = true
+path = "mod.rs"
+
+[package]
+name = "next-gen_proc-macro"
+version = "0.0.3-alpha"
+authors = ["Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>"]
+edition = "2018"
+
+repository = "https://github.com/danielhenrymantilla/next-gen-rs"
+documentation = "https://docs.rs/next-gen"
+description = "Safe generators on stable Rust."
+license-file = "LICENSE"
+
+[dependencies]
+fstrings = "0.2.2"
+proc-macro2 = "1.0.*"
+quote = "1.0.*"
+syn = "1.0.*"
+
+[features]
+verbose-expansions = ["syn/extra-traits", ]

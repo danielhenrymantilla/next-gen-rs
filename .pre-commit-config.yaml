@@ -1,0 +1,32 @@
+fail_fast: true
+
+repos:
+  - repo: local
+    hooks:
+      - id: check
+        name: check
+        language: system
+        files: '[.]rs$'
+        entry: cargo clippy --all-targets --features strict
+        pass_filenames: false
+
+      - id: test
+        name: test
+        language: system
+        files: '[.]rs$'
+        entry: cargo test
+        pass_filenames: false
+
+      - id: miri
+        name: miri
+        language: system
+        fields: '[.]rs$'
+        entry: sh ./run_miri.sh
+        pass_filenames: false
+
+      - id: readme-crates-io
+        name: readme-crates-io
+        language: system
+        fields: '[.]toml'
+        entry: sed -e 's/^```rust.*/```rust/' ./README.md | diff - ./README-crates-io.md
+        pass_filenames: false

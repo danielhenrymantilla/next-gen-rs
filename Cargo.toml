@@ -1,0 +1,37 @@
+[package]
+name = "next-gen"
+version = "0.0.3-alpha"
+authors = [
+    # Credits for the original idea go to John Simon, _c.f._ license
+    "John Simon <john@whatisaph.one>",
+
+    # Current implementation + macro sugar
+    "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>",
+]
+edition = "2018"
+license = "MIT"
+description = "Safe generators on stable Rust."
+repository = "https://github.com/danielhenrymantilla/next-gen-rs"
+documentation = "https://docs.rs/next-gen"
+readme = "README-crates-io.md"
+
+keywords = ["generator", "yield", "coroutine", "async", "await"]
+categories = ["asynchronous", "concurrency", "rust-patterns"]
+
+[dependencies]
+pin-project = "0.4.5"
+
+[dependencies.proc_macro]
+package = "next-gen_proc-macro"
+version = "0.0.3-alpha"
+path = "src/proc_macro"
+
+[features]
+external_doc = []
+verbose-expansions = ["proc_macro/verbose-expansions"]
+
+default = []
+
+allow-warnings = []
+[package.metadata.docs.rs]
+features = ["external_doc"]
