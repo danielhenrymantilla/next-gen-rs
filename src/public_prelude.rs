@@ -1,8 +1,7 @@
+//! The crate prelude: reexport the most essential utilities so that blob
+//! `use`-ing them should enable the most straight-forward usage.
+
 pub use crate::{
-    Coroutine,
-    Coroutine as Co,
-    utils::CellOption,
-    iter,
-    make_yield,
+    generator,
+    mk_gen,
 };
-pub use ::proc_macro::generator;

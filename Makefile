@@ -7,6 +7,8 @@ default: test
 all: publish
 
 publish: README-crates-io.md test
+	cargo publish --manifest-path src/proc_macro/Cargo.toml
+	sleep 10
 	cargo publish
 
 README-crates-io.md: README.md
@@ -20,7 +22,7 @@ test:
 	@echo "WARNING: miri test is disabled"  # sh ./run_miri.sh
 
 watch:
-	cargo watch -c -s "$(CARGO) check --features allow-warnings && $(CARGO) check"
+	cargo watch -c -s "$(CARGO) check --features allow-warnings --profile test && $(CARGO) check --profile test"
 
 clean:
 	rm -f README-crates-io.md

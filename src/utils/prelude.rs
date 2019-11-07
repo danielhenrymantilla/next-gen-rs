@@ -11,9 +11,9 @@ use ::std::{
 
 pub(in crate)
 use crate::{
-    Generator,
-    GeneratorState,
-    utils::{
-        CellOption,
+    utils::CellOption,
+    generator::{
+        Generator,
+        GeneratorState,
     },
 };

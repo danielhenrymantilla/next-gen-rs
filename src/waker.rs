@@ -23,21 +23,21 @@ const VTABLE: RawWakerVTable =
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 ;
 
-unsafe
+unsafe // Safety: no-op function
 fn clone (_: *const ())
   -> RawWaker
 {
     RAW_WAKER
 }
 
-unsafe
+unsafe // Safety: no-op function
 fn wake (_: *const ())
 {}
 
-unsafe
+unsafe // Safety: no-op function
 fn wake_by_ref (_: *const ())
 {}
 
-unsafe
+unsafe // Safety: no-op function
 fn drop (_: *const ())
 {}

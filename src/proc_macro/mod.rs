@@ -1,3 +1,8 @@
+#![cfg_attr(feature = "external_doc",
+    feature(external_doc),
+)]
+#![doc(test(attr(deny(warnings))))]
+
 #[macro_use]
 extern crate fstrings;
 extern crate proc_macro;
@@ -23,7 +28,25 @@ use ::syn::{*,
 mod macros;
 
 const IDENT_SUFFIX: &'static str = "__hack__";
-
+/// Transforms a function with `yield_!` calls into a generator.
+#[cfg_attr(feature = "external_doc",
+    doc = "",
+    doc = "# Example",
+    doc = "",
+    doc = "```rust",
+    doc(include = "../../doc_examples/generator.rs"),
+    doc = "```",
+)]
+///
+/// # Expansion
+///
+/// The above example expands to:
+#[cfg_attr(feature = "external_doc",
+    doc = "",
+    doc = "```rust",
+    doc(include = "../../doc_examples/generator_desugared.rs"),
+    doc = "```",
+)]
 #[proc_macro_attribute] pub
 fn generator (params: TokenStream, input: TokenStream)
   -> TokenStream
@@ -34,26 +57,29 @@ fn generator (params: TokenStream, input: TokenStream)
     let yield_type = {
         let params = parse_macro_input!(params as AttributeArgs);
         match params.len() {
-            | 0 => return Error::new(
-                Span::call_site(),
-                &f!("Missing parameter: expected `#[{FUNCTION_NAME}(<type>)]`"),
-            ).to_compile_error().into(),
+            | 0 => return {
+                Error::new(Span::call_site(), &f!(
+                    "Missing parameter: expected `#[{FUNCTION_NAME}(<type>)]`"
+                )).to_compile_error().into()
+            },
 
             | 1 => {
                 let arg = {params}.pop().unwrap();
                 match arg {
                     | NestedMeta::Meta(Meta::Path(path)) => path,
-                    | _ => return Error::new(
-                        arg.span(),
-                        "Expected a type",
-                    ).to_compile_error().into(),
+                    | _ => return {
+                        Error::new(arg.span(),
+                            "Expected a type"
+                        ).to_compile_error().into()
+                    },
                 }
             },
 
-            | _ => return Error::new(
-                {params}.pop().unwrap().span(),
-                &f!("Too many parameters"),
-            ).to_compile_error().into(),
+            | _ => return {
+                Error::new({params}.pop().unwrap().span(), &f!(
+                    "Too many parameters"
+                )).to_compile_error().into()
+            },
         }
     };
 
@@ -70,7 +96,7 @@ fn generator (params: TokenStream, input: TokenStream)
         *block = parse_quote! {
             {
                 #[derive(next_gen::next_gen_hack)]
-                enum __coroutine____hack__ {}
+                enum __yield_slot____hack__ {}
 
                 #block
             }
@@ -89,10 +115,11 @@ fn generator (params: TokenStream, input: TokenStream)
                     | _ => false,
                 })
         {
-            | Some(ty) => return Error::new(
-                ty.span(),
-                &f!("`#[{FUNCTION_NAME}]` does not support `self` receivers yet"),
-            ).to_compile_error().into(),
+            | Some(ty) => return {
+                Error::new(ty.span(), &f!(
+                    "`#[{FUNCTION_NAME}]` does not support `self` receivers yet"
+                )).to_compile_error().into()
+            },
 
             | _ => {},
         }
@@ -107,7 +134,7 @@ fn generator (params: TokenStream, input: TokenStream)
                 .unzip()
         ;
         sig.inputs = parse_quote! {
-            __coroutine__: next_gen::Coroutine<'_, #yield_type >,
+            __yield_slot__: next_gen::generator::YieldSlot<'_, #yield_type>,
             ( #(#pats ,)* ): ( #(#tys ,)* ),
         };
     }
@@ -123,14 +150,14 @@ fn generator (params: TokenStream, input: TokenStream)
 fn hack (input: TokenStream) -> TokenStream
 {
     let input: DeriveInput = parse_macro_input!(input);
-    let ident = input.ident.to_string();
-    let ident = &ident[.. ident.len() - IDENT_SUFFIX.len()];
-    let co = Ident::new(ident, input.ident.span());
+    let ident: String = input.ident.to_string();
+    let ident: &str = &ident[.. ident.len() - IDENT_SUFFIX.len()];
+    let yield_slot = Ident::new(ident, input.ident.span());
     TokenStream::from(quote_spanned! { input.span() =>
         macro_rules! yield_ {(
             $value:expr
         ) => (
-            #co._yield($value).await
+            let () = #yield_slot.put($value).await;
         )}
     })
 }

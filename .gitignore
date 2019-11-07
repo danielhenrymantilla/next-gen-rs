@@ -1,4 +1,5 @@
 /target
+/src/proc_macro/target
 **/*.rs.bk
 Cargo.lock
 README-crates-io.md

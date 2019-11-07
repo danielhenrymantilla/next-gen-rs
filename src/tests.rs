@@ -1,17 +1,54 @@
-use super::*;
+use super::{*,
+    generator::YieldSlot,
+};
+use ::core::iter::FromIterator;
+
+macro_rules! assert_it_eq {(
+    $left:expr, $right:expr $(, $($msg:expr $(,)?)?)?
+) => (
+    assert_eq!(
+        $left.into_iter().collect::<Vec<_>>(),
+        $right,
+        $($($msg ,)?)?
+    )
+)}
+
+macro_rules! make_yield {
+    (
+        @with_dollar![$dol:tt]
+        $co:expr
+    ) => (
+        macro_rules! yield_ {(
+            $dol value:expr
+        ) => (
+            $co.put($dol value).await
+        )}
+    );
+
+    (
+        $co:expr
+    ) => (
+        make_yield!(
+            @with_dollar![$]
+            $co
+        )
+    )
+}
 
 #[test]
 fn basic ()
 {
-    async fn generator<'foo> (co: Coroutine<'foo, u8>, _: ()) { make_yield!(co);
+    async fn generator<'foo> (out: YieldSlot<'foo, u8>, _: ()) {
+        make_yield!(out);
+
         yield_!(42);
         yield_!(0);
         yield_!(27);
     }
 
-    iter!(let iterator = generator());
-    assert_eq!(
-        iterator.collect::<Vec<_>>(),
+    mk_gen!(let generator = generator());
+    assert_it_eq!(
+        generator,
         [42, 0, 27],
     );
 }
@@ -19,7 +56,9 @@ fn basic ()
 #[test]
 fn range ()
 {
-    async fn range (co: Coroutine<'_, u8>, (start, end): (u8, u8)) { make_yield!(co);
+    async fn range (out: YieldSlot<'_, u8>, (start, end): (u8, u8)) {
+        make_yield!(out);
+
         let mut current = start;
         while current < end {
             yield_!(current);
@@ -27,11 +66,100 @@ fn range ()
         }
     }
 
-    iter!(let iterator = range(2, 8));
-    assert_eq!(
-        iterator.collect::<Vec<_>>(),
-        (2 .. 8).collect::<Vec<_>>(),
+    mk_gen!(let generator = range(2, 8));
+    assert_it_eq!(
+        generator,
+        Vec::from_iter(2 .. 8),
     );
 }
 
+mod proc_macros {
+    use super::*;
+    mod next_gen {
+        pub(in super) use crate::*;
+    }
+    use ::proc_macro::generator;
 
+    #[test]
+    fn range ()
+    {
+        #[generator(u8)]
+        fn range (start: u8, end: u8)
+        {
+            let mut current = start;
+            while current < end {
+                yield_!(current);
+                current += 1;
+            }
+        }
+
+        mk_gen!(let generator = range(2, 8));
+        assert_it_eq!(
+            generator,
+            Vec::from_iter(2 .. 8),
+        );
+    }
+
+    mod adaptors {
+        use super::*;
+
+        #[generator(T)]
+        fn filter<T> (
+            mut predicate: impl FnMut(&T) -> bool,
+            iterable: impl IntoIterator<Item = T>,
+        )
+        {
+            for element in iterable {
+                if predicate(&element) {
+                    yield_!(element);
+                }
+            }
+        }
+
+        #[generator(U)]
+        fn map<T, U> (
+            mut f: impl FnMut(T) -> U,
+            iterable: impl IntoIterator<Item = T>,
+        )
+        {
+            for element in iterable {
+                yield_!(f(element));
+            }
+        }
+
+        #[generator(u8)]
+        fn range (start: u8, end: u8)
+        {
+            let mut current = start;
+            while current < end {
+                yield_!(current);
+                current += 1;
+            }
+        }
+
+        #[test]
+        fn filter_range ()
+        {
+
+            mk_gen!(let iterator = range(2, 7));
+            mk_gen!(let iterator = filter(|x| x % 2 == 0, iterator));
+            assert_it_eq!(
+                iterator,
+                [2, 4, 6],
+            );
+        }
+
+        #[test]
+        fn filter_map_range ()
+        {
+
+            mk_gen!(let iterator = range(2, 7));
+            mk_gen!(let iterator = filter(|x| x % 2 == 0, iterator));
+            mk_gen!(let iterator = map(|x| x * x, iterator));
+            assert_it_eq!(
+                iterator,
+                [4, 16, 36],
+            );
+        }
+    }
+}

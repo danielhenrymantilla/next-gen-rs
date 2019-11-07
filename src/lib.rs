@@ -14,25 +14,17 @@
 #![warn(
     future_incompatible,
     rust_2018_compatibility,
-    // missing_docs,
+    missing_docs,
     clippy::cargo,
     clippy::pedantic,
 )]
 #![deny(
     unused_must_use,
 )]
+#![doc(test(attr(deny(warnings))))]
 #![cfg_attr(feature = "allow-warnings",
     allow(warnings),
 )]
-
-#[macro_use]
-extern crate pin_project;
-
-#[doc(hidden)]
-pub
-use ::core;
-#[doc(hidden)]
-pub use ::proc_macro::next_gen_hack;
 
 #[path = "public_prelude.rs"]
 pub
@@ -43,13 +35,16 @@ mod public_macros;
 #[macro_use]
 mod utils;
 
-pub
-mod iterator;
+mod iter;
 
 mod waker;
 
-pub use self::generator::*;
+pub
 mod generator;
+
+#[doc(hidden)] pub use ::core;
+#[doc(hidden)] pub use ::proc_macro::next_gen_hack;
+pub use ::proc_macro::generator;
 
 #[cfg(test)]
 mod tests;
