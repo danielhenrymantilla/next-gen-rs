@@ -8,20 +8,12 @@ extern crate fstrings;
 extern crate proc_macro;
 
 use ::proc_macro::TokenStream;
-use ::proc_macro2::{
-    Span,
-    // TokenStream as TokenStream2,
-};
 use quote::{
-    // ToTokens,
     quote,
     quote_spanned,
 };
 use ::syn::{*,
     spanned::Spanned,
-    // parse::Parse,
-    // punctuated::Punctuated,
-    // error::Error,
 };
 
 #[macro_use]
@@ -34,7 +26,9 @@ const IDENT_SUFFIX: &'static str = "__hack__";
     doc = "# Example",
     doc = "",
     doc = "```rust",
-    doc(include = "../../doc_examples/generator.rs"),
+    doc = "# macro_rules! ignore {($($tt:tt)*) => ()} ignore! {",
+    doc(include = "doc_examples/generator.rs"),
+    doc = "# }",
     doc = "```",
 )]
 ///
@@ -44,7 +38,9 @@ const IDENT_SUFFIX: &'static str = "__hack__";
 #[cfg_attr(feature = "external_doc",
     doc = "",
     doc = "```rust",
-    doc(include = "../../doc_examples/generator_desugared.rs"),
+    doc = "# macro_rules! ignore {($($tt:tt)*) => ()} ignore! {",
+    doc(include = "doc_examples/generator_desugared.rs"),
+    doc = "# }",
     doc = "```",
 )]
 #[proc_macro_attribute] pub
@@ -54,34 +50,7 @@ fn generator (params: TokenStream, input: TokenStream)
     #[allow(unused)]
     const FUNCTION_NAME: &str = "generator";
 
-    let yield_type = {
-        let params = parse_macro_input!(params as AttributeArgs);
-        match params.len() {
-            | 0 => return {
-                Error::new(Span::call_site(), &f!(
-                    "Missing parameter: expected `#[{FUNCTION_NAME}(<type>)]`"
-                )).to_compile_error().into()
-            },
-
-            | 1 => {
-                let arg = {params}.pop().unwrap();
-                match arg {
-                    | NestedMeta::Meta(Meta::Path(path)) => path,
-                    | _ => return {
-                        Error::new(arg.span(),
-                            "Expected a type"
-                        ).to_compile_error().into()
-                    },
-                }
-            },
-
-            | _ => return {
-                Error::new({params}.pop().unwrap().span(), &f!(
-                    "Too many parameters"
-                )).to_compile_error().into()
-            },
-        }
-    };
+    let yield_type: Type = parse_macro_input!(params as Type);
 
     debug_input!(&input);
     let mut function: ItemFn = parse_macro_input!(input);
@@ -134,7 +103,7 @@ fn generator (params: TokenStream, input: TokenStream)
                 .unzip()
         ;
         sig.inputs = parse_quote! {
-            __yield_slot__: next_gen::generator::YieldSlot<'_, #yield_type>,
+            __yield_slot__: next_gen::YieldSlot<'_, #yield_type>,
             ( #(#pats ,)* ): ( #(#tys ,)* ),
         };
     }

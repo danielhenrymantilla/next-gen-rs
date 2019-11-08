@@ -7,7 +7,7 @@ mod docs {
                 #[test] fn test () { main() }
                 include! {
                     concat!(
-                        "../doc_examples/",
+                        "../src/proc_macro/doc_examples/",
                         stringify!($ident),
                         ".rs",
                     )

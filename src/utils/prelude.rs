@@ -1,5 +1,5 @@
 pub(in crate)
-use ::std::{
+use ::core::{
     cell::Cell,
     future::Future,
     pin::Pin,
@@ -14,6 +14,7 @@ use crate::{
     utils::CellOption,
     generator::{
         Generator,
+        GeneratorFn,
         GeneratorState,
     },
 };

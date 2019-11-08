@@ -26,6 +26,13 @@
     allow(warnings),
 )]
 
+#![cfg_attr(not(feature = "alloc"),
+    no_std,
+)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 #[path = "public_prelude.rs"]
 pub
 mod prelude;
@@ -39,7 +46,7 @@ mod iter;
 
 mod waker;
 
-pub
+pub use self::generator::*;
 mod generator;
 
 #[doc(hidden)] pub use ::core;

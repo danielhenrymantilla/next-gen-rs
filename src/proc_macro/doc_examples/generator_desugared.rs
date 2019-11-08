@@ -1,15 +1,9 @@
 fn main ()
 {
-    use ::next_gen::{
-        generator::{
-            Generator,
-            GeneratorState,
-        },
-        stack_pinned,
-    };
+    use ::next_gen::prelude::*;
 
     async fn countdown<Ret> (
-        __yield_slot__: ::next_gen::generator::YieldSlot<'_, u8>,
+        __yield_slot__: ::next_gen::YieldSlot<'_, u8>,
         (count, value): (u8, Ret),
     ) -> Ret
     {
@@ -27,8 +21,8 @@ fn main ()
         value
     }
 
-    let generator = Generator::empty();
-    stack_pinned!(mut generator);
+    let generator = ::next_gen::GeneratorFn::empty();
+    ::next_gen::stack_pinned!(mut generator);
     generator
         .as_mut()
         .init(countdown, (3, "Boom!"))

@@ -3,5 +3,8 @@
 
 pub use crate::{
     generator,
+    gen_iter,
+    GeneratorState,
     mk_gen,
+    stack_pinned,
 };

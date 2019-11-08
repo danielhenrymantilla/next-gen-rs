@@ -1,9 +1,6 @@
 fn main ()
 {
-    use ::next_gen::{
-        prelude::*,
-        generator::GeneratorState,
-    };
+    use ::next_gen::prelude::*;
 
     #[generator(u8)]
     fn countdown<Ret> (count: u8, value: Ret) -> Ret

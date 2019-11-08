@@ -100,6 +100,30 @@ mod proc_macros {
         );
     }
 
+    #[test]
+    fn gen_iter ()
+    {
+        type Question = &'static str;
+        type Answer = i32;
+
+        #[generator(Question)]
+        fn answer () -> Answer
+        {
+            yield_!("What is the answer to life, the universe and everything?");
+            42
+        }
+
+        let ret = gen_iter!(
+            for question in answer() {
+                assert_eq!(
+                    question,
+                    "What is the answer to life, the universe and everything?",
+                );
+            }
+        );
+        assert_eq!(ret, 42);
+    }
+
     mod adaptors {
         use super::*;
 

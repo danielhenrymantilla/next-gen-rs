@@ -1,10 +1,6 @@
-//! Core generator logic: a generator is an `async fn` using a [`YieldSlot`]
-//! to yield items through.
-//!
-//! [`YieldSlot`]: crate::generator::YieldSlot
-
 use_prelude!();
 
+#[doc(hidden)]
 /// The main "hack": the slot used by the `async fn` to yield items through it,
 /// at each `await` / `yield_!` point.
 pub
@@ -23,9 +19,6 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
     #[doc(hidden)]
     /// Fills the slot with a value, and returns an `.await`-able to be used as
     /// yield point.
-    ///
-    /// Although you can use it directly, the `yield_!()` macro takes care of
-    /// that.
     pub
     fn put (self: &'_ Self, value: Item)
       -> impl Future<Output = ()> + '_
@@ -39,7 +32,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
         ///  1. The first time it is polled, the slot has just been filled
         ///     (_c.f._, lines above); which triggers a `Pending` yield
         ///     interruption, so that the outer thing polling it
-        ///     (Generator::resume), get to extract the value out of the yield
+        ///     (GeneratorFn::resume), get to extract the value out of the yield
         ///     slot.
         ///
         ///  2. The second time it is polled, the slot is empty, so that the
@@ -65,9 +58,126 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
     }
 }
 
-/// A generator is an `async fn` function with an internal [`YieldSlot`]
+/// An _instance_ of a `#[generator]`-tagged function.
+///
+/// These are created in a two-step fashion:
+///
+///  1. First, an [`empty()`][`GeneratorFn::empty`] generator is created,
+///     which is to be [pinned][`Pin`].
+///
+///  2. Once it is [pinned][`Pin`], it can be [`.init()`][
+///     `GeneratorFn::init`]-ialized with a `#[generator]`-tagged function.
+///
+/// As with any [`Generator`], for a [`GeneratorFn`] to be usable, it must have
+/// been previously [`Pin`]ned:
+///
+///   - either in the _heap_, through [`Box::pin`];
+///
+///     ```rust
+///     use ::next_gen::{prelude::*, GeneratorFn, GeneratorState};
+///
+///     #[generator(u32)]
+///     fn countdown (mut remaining: u32)
+///     {
+///         while let Some(next) = remaining.checked_sub(1) {
+///             yield_!(remaining);
+///             remaining = next;
+///         }
+///     }
+///
+///     let generator = GeneratorFn::empty();
+///     let mut generator = Box::pin(generator);
+///     generator.as_mut().init(countdown, (3,));
+///
+///     let mut next = || generator.as_mut().resume();
+///     assert_eq!(next(), GeneratorState::Yield(3));
+///     assert_eq!(next(), GeneratorState::Yield(2));
+///     assert_eq!(next(), GeneratorState::Yield(1));
+///     assert_eq!(next(), GeneratorState::Return(()));
+///     ```
+///
+///   - or in the _stack_, through [`stack_pinned!`][`stack_pinned`].
+///
+///     ```rust
+///     use ::next_gen::{prelude::*, GeneratorFn, GeneratorState};
+///
+///     #[generator(u32)]
+///     fn countdown (mut remaining: u32)
+///     {
+///         while let Some(next) = remaining.checked_sub(1) {
+///             yield_!(remaining);
+///             remaining = next;
+///         }
+///     }
+///
+///     let generator = GeneratorFn::empty();
+///     stack_pinned!(mut generator);
+///     generator.as_mut().init(countdown, (3,));
+///     let mut next = || generator.as_mut().resume();
+///     assert_eq!(next(), GeneratorState::Yield(3));
+///     assert_eq!(next(), GeneratorState::Yield(2));
+///     assert_eq!(next(), GeneratorState::Yield(1));
+///     assert_eq!(next(), GeneratorState::Return(()));
+///     ```
+///
+/// # `mk_gen!`
+///
+/// [`mk_gen!`][`mk_gen`] is a macro that reduces the boilerplate of the above
+/// patterns, by performing the two step-initialization within a single macro
+/// call.
+///
+/// # Stack _vs._ heap
+///
+/// Since stack-pinning prevents ever moving the generator around (duh), once
+/// stack-pinned, a [`Generator`] cannot be, for instance, returned. For that,
+/// [`Pin`]ning in the heap is necessary:
+///
+/// ```rust
+/// use ::next_gen::prelude::*;
+///
+/// # let _ = countdown;
+/// pub
+/// fn countdown (count: u32)
+///   -> impl Iterator<Item = u32> + 'static
+/// {
+///     #[generator(u32)]
+///     fn countdown (mut remaining: u32)
+///     {
+///         while let Some(next) = remaining.checked_sub(1) {
+///             yield_!(remaining);
+///             remaining = next;
+///         }
+///     }
+///
+///     mk_gen!(let generator = box countdown(count));
+///     generator.into_iter() // A pinned generator is iterable.
+/// }
+/// ```
+///
+/// However, pinning in the stack is vastly more performant (it is zero-cost in
+/// release mode), and _suffices for local iteration_. It is thus **the blessed
+/// form of [`Pin`]ning**, which should be favored over `box`-ing.
+///
+/// ```rust
+/// use ::next_gen::prelude::*;
+///
+/// #[generator(u32)]
+/// fn countdown (mut remaining: u32)
+/// {
+///     while let Some(next) = remaining.checked_sub(1) {
+///         yield_!(remaining);
+///         remaining = next;
+///     }
+/// }
+///
+/// mk_gen!(let generator = countdown(3));
+/// assert_eq!(
+///     generator.into_iter().collect::<Vec<_>>(),
+///     [3, 2, 1],
+/// );
+/// ```
 pub
-struct Generator<Item, F : Future> {
+struct GeneratorFn<Item, F : Future> {
     yield_slot: CellOption<Item>,
 
     future: Option<F>,
@@ -78,7 +188,7 @@ struct GeneratorPinnedFields<'pin, Item : 'pin, F : Future + 'pin> {
     future: Pin<&'pin mut F>,
 }
 
-impl<Item, F : Future> Generator<Item, F> {
+impl<Item, F : Future> GeneratorFn<Item, F> {
     fn project (self: Pin<&'_ mut Self>) -> GeneratorPinnedFields<'_, Item, F>
     {
         unsafe {
@@ -94,7 +204,7 @@ impl<Item, F : Future> Generator<Item, F> {
                 future: Pin::new_unchecked(
                     this.future
                         .as_mut()
-                        .expect("You must init a Generator before using it!")
+                        .expect("You must init a GeneratorFn before using it!")
                 ),
             }
         }
@@ -111,7 +221,7 @@ impl<Item, F : Future> Generator<Item, F> {
         }
     }
 
-    /// Fill the memory reserved by [`Generator::empty`]`()` with an instance of
+    /// Fill the memory reserved by [`GeneratorFn::empty`]`()` with an instance of
     /// the generator function / factory.
     pub
     fn init<'pin, 'yield_slot, Args> (
@@ -123,7 +233,7 @@ impl<Item, F : Future> Generator<Item, F> {
         Item : 'yield_slot,
     {
         assert!(self.future.is_none(),
-            "Generator cannot be initialized multiple times!",
+            "GeneratorFn cannot be initialized multiple times!",
         );
         unsafe {
             // # Safety
@@ -149,10 +259,107 @@ impl<Item, F : Future> Generator<Item, F> {
         }
     }
 
-    /// Polls the next value of the generator.
-    ///
-    /// Once a [`Generator`] is completed, it should not be polled again.
+    /// Associated method version of [`Generator::resume`].
+    #[inline]
     pub
+    fn resume (self: Pin<&'_ mut Self>)
+      -> GeneratorState<Item, F::Output>
+    {
+        <Self as Generator>::resume(self)
+    }
+}
+
+/// The trait implemented by [`GeneratorFn`]s.
+///
+/// Generators, also commonly referred to as coroutines, provide an ergonomic
+/// definition for iterators and other primitives, allowing to write iterators
+/// and iterator adapters in a much more _imperative_ way, which may sometimes
+/// improve the readability of such iterators / iterator adapters.
+///
+/// # Example
+///
+/// ```rust
+/// use ::next_gen::{prelude::*, GeneratorState};
+///
+/// fn main ()
+/// {
+///     #[generator(i32)]
+///     fn generator_fn () -> &'static str
+///     {
+///         yield_!(1);
+///         return "foo"
+///     }
+///
+///     mk_gen!(let mut generator = generator_fn());
+///
+///     match generator.as_mut().resume() {
+///         | GeneratorState::Yield(1) => {}
+///         | _ => panic!("unexpected return from resume"),
+///     }
+///     match generator.as_mut().resume() {
+///         | GeneratorState::Return("foo") => {}
+///         | _ => panic!("unexpected yield from resume"),
+///     }
+/// }
+/// ```
+pub
+trait Generator {
+    /// The type of value this generator yields.
+    ///
+    /// This associated type corresponds to the `yield_!` expression and the
+    /// values which are allowed to be returned each time a generator yields.
+    /// For example an iterator-as-a-generator would likely have this type as
+    /// `T`, the type being iterated over.
+    type Yield;
+
+    /// The type of value this generator returns.
+    ///
+    /// This corresponds to the type returned from a generator either with a
+    /// `return` statement or implicitly as the last expression of a generator
+    /// literal.
+    type Return;
+
+
+    /// Resumes the execution of this generator.
+    ///
+    /// This function will resume execution of the generator or start execution
+    /// if it hasn't already. This call will return back into the generator's
+    /// last suspension point, resuming execution from the latest `yield_!`.
+    /// The generator will continue executing until it either yields or returns,
+    /// at which point this function will return.
+    ///
+    /// # Return value
+    ///
+    /// The [`GeneratorState`] enum returned from this function indicates what
+    /// state the generator is in upon returning.
+    ///
+    /// If the [`Yield`][`GeneratorState::Yield`] variant is returned then the
+    /// generator has reached a suspension point and a value has been yielded
+    /// out. Generators in this state are available for resumption at a later
+    /// point.
+    ///
+    /// If [`Return`] is returned then the generator has completely finished
+    /// with the value provided. It is invalid for the generator to be resumed
+    /// again.
+    ///
+    /// # Panics
+    ///
+    /// This function may panic if it is called after the [`Return`] variant has
+    /// been returned previously. While generator literals in the language are
+    /// guaranteed to panic on resuming after [`Return`], this is not guaranteed
+    /// for all implementations of the [`Generator`] trait.
+    ///
+    /// [`Return`]: `GeneratorState::Return`
+    fn resume (self: Pin<&'_ mut Self>)
+      -> GeneratorState<Self::Yield, Self::Return>
+    ;
+}
+
+impl<Item, F : Future> Generator for GeneratorFn<Item, F> {
+    type Yield = Item;
+
+    type Return = F::Output;
+
     fn resume (self: Pin<&'_ mut Self>)
       -> GeneratorState<Item, F::Output>
     {
@@ -175,22 +382,71 @@ impl<Item, F : Future> Generator<Item, F> {
     }
 }
 
-/// Value obtained when polling a [`Generator`]. Either it [yields][
-/// `GeneratorState::Yield`] a value, or it has _just_ completed with a
-/// [return value][`GeneratorState::Return`]
+/// Value obtained when [polling][`Generator::resume`] a [`GeneratorFn`].
+///
+/// This corresponds to:
+///
+///   - either a [suspension point][`GeneratorState::Yield`],
+///
+///   - or a [termination point][`GeneratorState::Return`]
 #[derive(
     Debug,
     Clone, Copy,
     PartialEq, Eq,
+    PartialOrd, Ord,
+    Hash
 )]
 pub
 enum GeneratorState<Yield, Return = ()> {
-    /// Value yielded by the [`Generator`], equivalent of an `Iterator`'s
-    /// `Some(Item)`.
+    /// The [`Generator`] suspended with a value.
+    ///
+    /// This state indicates that a [`Generator`] has been suspended, and
+    /// corresponds to a `yield_!` statement. The value provided in this variant
+    /// corresponds to the expression passed to `yield_!` and allows generators
+    /// to provide a value each time they `yield_!`.
     Yield(Yield),
 
-    /// Value _returned_ by the [`Generator`] once it has completed: contrary
-    /// to an `Iterator`'s "empty" `None` value used to signal the end of the
-    /// iteration, a [`Generator`] may end with a meaningful value.
+    /// The [`Generator`] _completed_ with a [`Return`] value.
+    ///
+    /// This state indicates that a [`Generator`] has finished execution with
+    /// the provided value. Once a generator has returned [`Return`], it is
+    /// considered a programmer error to call [`.resume()`][`Generator::resume`]
+    /// again.
+    ///
+    /// [`Return`]: Generator::Return
     Return(Return),
+}
+
+impl<'a, G : ?Sized + 'a> Generator for Pin<&'a mut G>
+where
+    G : Generator,
+{
+    type Yield = G::Yield;
+    type Return = G::Return;
+
+    #[inline]
+    fn resume (mut self: Pin<&'_ mut Pin<&'a mut G>>)
+      -> GeneratorState<Self::Yield, Self::Return>
+    {
+        G::resume(
+            Pin::<&mut G>::as_mut(&mut *self)
+        )
+    }
+}
+
+impl<'a, G : ?Sized + 'a> Generator for &'a mut G
+where
+    G : Generator + Unpin,
+{
+    type Yield = G::Yield;
+    type Return = G::Return;
+
+    #[inline]
+    fn resume (mut self: Pin<&'_ mut &'a mut G>)
+      -> GeneratorState<Self::Yield, Self::Return>
+    {
+        G::resume(
+            Pin::<&mut G>::new(&mut *self)
+        )
+    }
 }

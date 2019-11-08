@@ -4,7 +4,7 @@ Safe generators on stable Rust.
 
 ## Examples
 
-Reimplementing a `range` iterator:
+### Reimplementing a `range` iterator
 
 ```rust
 use ::next_gen::prelude::*;
@@ -19,14 +19,14 @@ fn range (start: u8, end: u8)
     }
 }
 
-mk_gen!(let mut generator = range(3, 10));
+mk_gen!(let generator = range(3, 10));
 assert_eq!(
     generator.into_iter().collect::<Vec<_>>(),
     (3 .. 10).collect::<Vec<_>>(),
 );
 ```
 
-Implementing an iterator over prime numbers using the sieve of Eratosthenes
+### Implementing an iterator over prime numbers using the sieve of Eratosthenes
 
 ```rust
 use ::next_gen::prelude::*;
@@ -39,7 +39,7 @@ type None = Option<Void>;
 fn primes_up_to (up_to: usize) -> None
 {
     if up_to < 2 { return None; }
-    let mut sieve = vec![true; up_to + 1];
+    let mut sieve = vec![true; up_to.checked_add(1).expect("Overflow")];
     let mut p: usize = 1;
     loop {
         p += 1 + sieve
@@ -60,11 +60,49 @@ fn primes_up_to (up_to: usize) -> None
     }
 }
 
-mk_gen!(let primes = primes_up_to(11));
-assert_eq!(
-    primes.into_iter().collect::<Vec<_>>(),
-    [2, 3, 5, 7, 11],
-);
+mk_gen!(let primes = primes_up_to(10_000));
+for prime in primes {
+    assert!(
+        (2_usize ..)
+            .take_while(|&n| n.saturating_mul(n) <= prime)
+            .all(|n| prime % n != 0)
+    );
+}
+```
+
+## Features
+
+### Performance
+
+The crate enables no-allocation generators, thanks the usage of stack pinning.
+When used in that fashion, it should thus be close to zero-cost.
+
+### Ergonomics / sugar
+
+A lot of effort has been put into macros and an attribute macro providing the
+most ergonomic experience when dealing with these generators, despite the
+complex / subtle internals involved, such as stack pinning.
+
+### Safe
+
+Almost no `unsafe` is used, the exception being:
+
+  - Stack pinning, where it uses the official `::pin_utils::pin_mut`
+    implementation;
+
+  - Using the pinning guarantee to extend a lifetime;
+
+  - A manual implementation of `Cell<Option<T>>` with a very straight-forward
+    safety invariant.
+
+### `no_std` support
+
+This crates supports `#![no_std]`. For it, just disable the default `"alloc"`
+feature:
+
+```toml
+[dependencies]
+next-gen = { version = "...", default-features = false }
 ```
 
 #### Idea
