@@ -103,7 +103,7 @@ fn generator (params: TokenStream, input: TokenStream)
                 .unzip()
         ;
         sig.inputs = parse_quote! {
-            __yield_slot__: next_gen::YieldSlot<'_, #yield_type>,
+            __yield_slot__: next_gen::__Internals_YieldSlot_DoNotUse__<'_, #yield_type>,
             ( #(#pats ,)* ): ( #(#tys ,)* ),
         };
     }

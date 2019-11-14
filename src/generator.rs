@@ -1,19 +1,66 @@
 use_prelude!();
 
-#[doc(hidden)]
+mod internals { use super::*;
 /// The main "hack": the slot used by the `async fn` to yield items through it,
 /// at each `await` / `yield_!` point.
+///
+/// # DO NOT USE DIRECTLY
+///
+/// Never use or access this value directly, let the macro sugar do it.
+/// Failure to comply may jeopardize the memory safety of the program,
+/// which a failguard will detect, causing the program to abort.
+/// You have been warned.
+///
+/// For instance, the following code leads to an abort:
+///
+/// ```rust,no_run
+/// use ::next_gen::{__Internals_YieldSlot_DoNotUse__, gen_iter};
+///
+/// async fn generator (yield_slot: __Internals_YieldSlot_DoNotUse__<'_, u8>, _: ())
+///   -> __Internals_YieldSlot_DoNotUse__<'_, u8>
+/// {
+///     yield_slot
+/// }
+///
+/// let dangling_yield_slot = {
+///     gen_iter!(for _ in generator() {})
+///     // the generator() is dropped and the obtained yield_slot would thus dangle.
+///     // this is detected by the generator destructor (guaranteed to run
+///     // thanks to `Pin` guarantees), which then aborts the program to avoid
+///     // unsoundness.
+/// };
+/// // <-- never reached "thanks" to the abort.
+/// let _ = dangling_yield_slot.put(42); // write-dereference a dangling pointer !
+/// ```
+#[allow(bad_style)]
 pub
-struct YieldSlot<'yield_slot, Item : 'yield_slot> (
-    Pin<&'yield_slot CellOption<Item>>,
-);
+struct YieldSlot<'yield_slot, Item : 'yield_slot> {
+    pub(in super)
+    item_slot: Pin<&'yield_slot ItemSlot<Item>>,
+}
+} use internals::YieldSlot;
+
+#[doc(hidden, inline)]
+pub use internals::YieldSlot as __Internals_YieldSlot_DoNotUse__;
+
+impl<Item> Drop for YieldSlot<'_, Item> {
+    fn drop (self: &'_ mut Self)
+    {
+        self.item_slot.drop_flag.set(());
+    }
+}
+
+struct ItemSlot<Item> {
+    value: CellOption<Item>,
+    drop_flag: CellOption<()>,
+}
 
 impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
     #[inline]
-    fn new (p: Pin<&'yield_slot CellOption<Item>>)
+    fn new (item_slot: Pin<&'yield_slot ItemSlot<Item>>)
       -> Self
     {
-        Self(p)
+        Self { item_slot }
     }
 
     #[doc(hidden)]
@@ -23,7 +70,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
     fn put (self: &'_ Self, value: Item)
       -> impl Future<Output = ()> + '_
     {
-        let prev: Option<Item> = self.0.set(value);
+        let prev: Option<Item> = self.item_slot.value.set(value);
         debug_assert!(prev.is_none(), "slot was empty");
         return WaitForClear { yield_slot: self };
 
@@ -48,7 +95,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
             fn poll (self: Pin<&'_ mut Self>, _: &'_ mut Context<'_>)
               -> Poll<()>
             {
-                if /* while */ self.yield_slot.0.is_some() {
+                if self.yield_slot.item_slot.value.is_some() {
                     Poll::Pending
                 } else {
                     Poll::Ready(())
@@ -178,13 +225,35 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 /// ```
 pub
 struct GeneratorFn<Item, F : Future> {
-    yield_slot: CellOption<Item>,
+    item_slot: ItemSlot<Item>,
 
     future: Option<F>,
 }
 
+impl<Item, F : Future> Drop for GeneratorFn<Item, F> {
+    fn drop (self: &'_ mut Self)
+    {
+        drop(self.future.take());
+        if self.item_slot.drop_flag.is_none() {
+            eprintln!(concat!(
+                "`::next_gen` fatal runtime error: ",
+                "a `YieldSlot` was about to dangle!",
+                "\n",
+                "\n",
+                "This is only possible if the internals of `::next_gen` were ",
+                "(ab)used directly, ",
+                "by making a `YieldSlot` escape the `#[generator] fn`.",
+                "\n",
+                "Since this could lead to memory unsafety, ",
+                "the program will now abort.",
+            ));
+            ::std::process::abort();
+        }
+    }
+}
+
 struct GeneratorPinnedFields<'pin, Item : 'pin, F : Future + 'pin> {
-    yield_slot: Pin<&'pin CellOption<Item>>,
+    item_slot: Pin<&'pin ItemSlot<Item>>,
     future: Pin<&'pin mut F>,
 }
 
@@ -196,11 +265,14 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
             //
             // This is the same as ::pin_project's .project() method:
             //
-            //   - No `Drop`, no packing, and the two fields are considered
-            //     transitively pinned.
+            //   - the two fields are considered transitively pinned.
+            //
+            //   - `Drop` does not move without calling the destructor,
+            //
+            //   - no packing
             let this = self.get_unchecked_mut();
             GeneratorPinnedFields {
-                yield_slot: Pin::new_unchecked(&this.yield_slot),
+                item_slot: Pin::new_unchecked(&this.item_slot),
                 future: Pin::new_unchecked(
                     this.future
                         .as_mut()
@@ -216,13 +288,16 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
       -> Self
     {
         Self {
-            yield_slot: CellOption::None,
+            item_slot: ItemSlot {
+                value: CellOption::None,
+                drop_flag: CellOption::None,
+            },
             future: None,
         }
     }
 
-    /// Fill the memory reserved by [`GeneratorFn::empty`]`()` with an instance of
-    /// the generator function / factory.
+    /// Fill the memory reserved by [`GeneratorFn::empty`]`()` with an instance
+    /// of the generator function / factory.
     pub
     fn init<'pin, 'yield_slot, Args> (
         self: Pin<&'pin mut Self>,
@@ -243,15 +318,18 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
             //     the field cannot have been pinned yet (given the API).
             //
             //   - The pinning guarantee ensures the soundness of the lifetime
-            //     extension.
+            //     extension: `GeneratorFn` destructor is guaranteed to run,
+            //     which performs a runtime check to ensure that the
+            //     `yield_slot` has been dropped. If it hasn't, the program
+            //     aborts to avoid any potential unsoundness.
             let this = self.get_unchecked_mut();
             let yield_slot =
                 YieldSlot::new(Pin::new_unchecked(
                     ::core::mem::transmute::<
-                        &'pin CellOption<Item>,
-                        &'yield_slot CellOption<Item>,
+                        &'pin ItemSlot<Item>,
+                        &'yield_slot ItemSlot<Item>,
                     >(
-                        &this.yield_slot
+                        &this.item_slot
                     )
                 ))
             ;
@@ -368,7 +446,8 @@ impl<Item, F : Future> Generator for GeneratorFn<Item, F> {
         match this.future.poll(&mut cx) {
             | Poll::Pending => {
                 let value =
-                    this.yield_slot
+                    this.item_slot
+                        .value
                         .take()
                         .expect("Missing item in yield_slot!")
                 ;

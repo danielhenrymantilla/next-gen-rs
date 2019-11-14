@@ -1,5 +1,5 @@
 use super::{*,
-    generator::YieldSlot,
+    generator::__Internals_YieldSlot_DoNotUse__ as YieldSlot,
 };
 use ::core::iter::FromIterator;
 

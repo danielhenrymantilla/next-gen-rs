@@ -90,4 +90,14 @@ impl<T> CellOption<T> {
     {
         self.is_some.get()
     }
+
+    /// Returns `true` if and only if the `Cell` contains no value.
+    #[inline]
+    pub
+    fn is_none (self: &'_ Self)
+      -> bool
+    {
+        use ::core::ops::Not;
+        self.is_some().not()
+    }
 }

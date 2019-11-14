@@ -3,7 +3,7 @@ fn main ()
     use ::next_gen::prelude::*;
 
     async fn countdown<Ret> (
-        __yield_slot__: ::next_gen::YieldSlot<'_, u8>,
+        __yield_slot__: next_gen::__Internals_YieldSlot_DoNotUse__<'_, u8>,
         (count, value): (u8, Ret),
     ) -> Ret
     {

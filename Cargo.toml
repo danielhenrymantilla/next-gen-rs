@@ -1,6 +1,6 @@
 [package]
 name = "next-gen"
-version = "0.0.5"
+version = "0.0.6"
 authors = ["Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -16,7 +16,7 @@ categories = ["asynchronous", "concurrency", "rust-patterns"]
 
 [dependencies.proc_macro]
 package = "next-gen_proc-macro"
-version = "0.0.5"
+version = "0.0.6"
 path = "src/proc_macro"
 
 [features]
