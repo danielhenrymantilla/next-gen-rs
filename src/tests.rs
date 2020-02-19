@@ -186,4 +186,38 @@ mod proc_macros {
             );
         }
     }
+
+    fn return_iterator_with_concrete_dyn_type ()
+    {
+        use ::std::pin::Pin;
+        trait Countdown {
+            type Iter : Iterator<Item = u8>;
+            fn countdown (self: &'_ Self) -> Self::Iter;
+        }
+        struct CountdownFrom(u8);
+        enum Void {} type None = Option<Void>;
+        impl Countdown for CountdownFrom {
+            type Iter = Pin<Box<dyn Generator<Yield = u8, Return = None>>>;
+            fn countdown (self: &'_ Self)
+              -> Self::Iter
+            {
+                #[generator(u8)]
+                fn countdown (from: u8) -> Option<Void>
+                {
+                    let mut current = from;
+                    loop {
+                        yield_!(current);
+                        current = current.checked_sub(1)?;
+                    }
+                    None
+                }
+                mk_gen!(let gen = box countdown(self.0));
+                gen
+            }
+        }
+        assert_it_eq!(
+            CountdownFrom(3).countdown(),
+            [3, 2, 1, 0],
+        );
+    }
 }

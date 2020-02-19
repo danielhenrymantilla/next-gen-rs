@@ -70,6 +70,85 @@ for prime in primes {
 }
 ```
 
+
+### Defining an iterator with borrowed state
+
+This is surely the most useful feature of a generator.
+
+For instance, the following does not work, no matter how hard you try:
+
+```rust,compile_fail
+use ::std::sync::Mutex;
+
+fn iter_locked (vec: &'_ Mutex<Vec<i32>>)
+  -> impl Iterator<Item = i32> + '_
+{
+    ::std::iter::from_fn({
+        let guard = vec.lock().unwrap();
+        let mut iter = guard.iter().copied();
+        move || {
+            // let _ = guard;
+            iter.next()
+        }
+    })
+}
+```
+
+But this works:
+
+```rust
+use ::next_gen::prelude::*;
+use ::std::sync::Mutex;
+
+fn iter_locked (vec: &'_ Mutex<Vec<i32>>) -> impl Iterator<Item = i32> + '_
+{
+    #[generator(i32)]
+    fn gen (mutex: &'_ Mutex<Vec<i32>>)
+    {
+        let vec = mutex.lock().unwrap();
+        for &elem in vec.iter() {
+            yield_!(elem);
+        }
+    }
+    mk_gen!(let generator = box gen(vec));
+    generator
+        .into_iter()
+}
+
+let vec = Mutex::new(vec![42, 27]);
+let mut iter = iter_locked(&vec);
+assert_eq!(iter.next(), Some(42));
+assert_eq!(iter.next(), Some(27));
+assert_eq!(iter.next(), None);
+```
+
+  - If the `iter_locked()` function you are trying to implement is part of
+    a trait definition and thus need to name the type, you can use
+    `Pin<Box<dyn Generator<Yield = i32, Return = ()> + '_>>
+
+    ```rust
+    use ::next_gen::{prelude::*, Generator};
+    use ::std::pin::Pin;
+
+    struct Once<T>(T);
+    impl<T : 'static> IntoIterator for Once<T> {
+        type Item = T;
+        type IntoIter = Pin<Box<dyn Generator<Yield = T, Return = ()> + 'static>>;
+
+        fn into_iter (self: Once<T>) -> Self::IntoIter
+        {
+            #[generator(T)]
+            fn gen<T> (Once(value): Once<T>)
+            {
+                yield_!(value);
+            }
+            mk_gen!(let generator = box gen(self));
+            generator
+        }
+    }
+    assert_eq!(Once(42).into_iter().next(), Some(42));
+    ```
+
 ## Features
 
 ### Performance

@@ -58,3 +58,20 @@ impl<Item, F : Future> IntoIterator
         Iter(self)
     }
 }
+
+#[cfg(feature = "alloc")]
+impl<Item, R> Iterator
+    for Pin<::alloc::boxed::Box<dyn Generator<Yield = Item, Return = R>>>
+{
+    type Item = Item;
+
+    #[inline]
+    fn next (self: &'_ mut Self)
+      -> Option<Self::Item>
+    {
+        match self.as_mut().resume() {
+            | GeneratorState::Yield(x) => Some(x),
+            | GeneratorState::Return(_) => None,
+        }
+    }
+}
