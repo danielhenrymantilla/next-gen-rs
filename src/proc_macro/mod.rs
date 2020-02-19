@@ -125,8 +125,8 @@ fn hack (input: TokenStream) -> TokenStream
     TokenStream::from(quote_spanned! { input.span() =>
         macro_rules! yield_ {(
             $value:expr
-        ) => (
+        ) => ({
             let () = #yield_slot.put($value).await;
-        )}
+        })}
     })
 }
