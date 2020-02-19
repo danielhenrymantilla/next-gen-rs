@@ -124,11 +124,10 @@ assert_eq!(iter.next(), None);
 
   - If the `iter_locked()` function you are trying to implement is part of
     a trait definition and thus need to name the type, you can use
-    `Pin<Box<dyn Generator<Yield = i32, Return = ()> + '_>>
+    `Pin<Box<dyn Generator<Yield = i32, Return = ()> + '_>>`
 
     ```rust
-    use ::next_gen::{prelude::*, Generator};
-    use ::std::pin::Pin;
+    use ::next_gen::prelude::*;
 
     struct Once<T>(T);
     impl<T : 'static> IntoIterator for Once<T> {
@@ -176,7 +175,7 @@ Almost no `unsafe` is used, the exception being:
 
 ### `no_std` support
 
-This crates supports `#![no_std]`. For it, just disable the default `"alloc"`
+This crates supports `#![no_std]`. For it, just disable the default `"std"`
 feature:
 
 ```toml

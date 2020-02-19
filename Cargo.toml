@@ -1,6 +1,6 @@
 [package]
 name = "next-gen"
-version = "0.0.7"
+version = "0.0.8"
 authors = ["Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -16,15 +16,15 @@ categories = ["asynchronous", "concurrency", "rust-patterns"]
 
 [dependencies.proc_macro]
 package = "next-gen_proc-macro"
-version = "0.0.7"
+version = "0.0.8"
 path = "src/proc_macro"
 
 [features]
-alloc = []
+std = []
 external_doc = ["proc_macro/external_doc"]
 verbose-expansions = ["proc_macro/verbose-expansions"]
 
-default = ["alloc"]
+default = ["std"]
 
 allow-warnings = []
 [package.metadata.docs.rs]

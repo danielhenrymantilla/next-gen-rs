@@ -189,7 +189,7 @@ mod proc_macros {
 
     fn return_iterator_with_concrete_dyn_type ()
     {
-        use ::std::pin::Pin;
+        use ::core::pin::Pin;
         trait Countdown {
             type Iter : Iterator<Item = u8>;
             fn countdown (self: &'_ Self) -> Self::Iter;

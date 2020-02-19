@@ -121,7 +121,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 ///   - either in the _heap_, through [`Box::pin`];
 ///
 ///     ```rust
-///     use ::next_gen::{prelude::*, GeneratorFn, GeneratorState};
+///     use ::next_gen::{prelude::*, GeneratorFn};
 ///
 ///     #[generator(u32)]
 ///     fn countdown (mut remaining: u32)
@@ -146,7 +146,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 ///   - or in the _stack_, through [`stack_pinned!`][`stack_pinned`].
 ///
 ///     ```rust
-///     use ::next_gen::{prelude::*, GeneratorFn, GeneratorState};
+///     use ::next_gen::{prelude::*, GeneratorFn};
 ///
 ///     #[generator(u32)]
 ///     fn countdown (mut remaining: u32)
@@ -235,19 +235,24 @@ impl<Item, F : Future> Drop for GeneratorFn<Item, F> {
     {
         drop(self.future.take());
         if self.item_slot.drop_flag.is_none() {
-            eprintln!(concat!(
-                "`::next_gen` fatal runtime error: ",
-                "a `YieldSlot` was about to dangle!",
-                "\n",
-                "\n",
-                "This is only possible if the internals of `::next_gen` were ",
-                "(ab)used directly, ",
-                "by making a `YieldSlot` escape the `#[generator] fn`.",
-                "\n",
-                "Since this could lead to memory unsafety, ",
-                "the program will now abort.",
-            ));
-            ::std::process::abort();
+            #[cfg(feature = "std")] {
+                eprintln!(concat!(
+                    "`::next_gen` fatal runtime error: ",
+                    "a `YieldSlot` was about to dangle!",
+                    "\n",
+                    "\n",
+                    "This is only possible if the internals of `::next_gen` were ",
+                    "(ab)used directly, ",
+                    "by making a `YieldSlot` escape the `#[generator] fn`.",
+                    "\n",
+                    "Since this could lead to memory unsafety, ",
+                    "the program will now abort.",
+                ));
+                ::std::process::abort();
+            }
+            #[cfg(not(feature = "std"))] {
+                loop {}
+            }
         }
     }
 }
@@ -357,7 +362,7 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
 /// # Example
 ///
 /// ```rust
-/// use ::next_gen::{prelude::*, GeneratorState};
+/// use ::next_gen::prelude::*;
 ///
 /// fn main ()
 /// {
@@ -365,20 +370,44 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
 ///     fn generator_fn () -> &'static str
 ///     {
 ///         yield_!(1);
-///         return "foo"
+///         return "foo";
 ///     }
 ///
 ///     mk_gen!(let mut generator = generator_fn());
 ///
-///     match generator.as_mut().resume() {
-///         | GeneratorState::Yield(1) => {}
-///         | _ => panic!("unexpected return from resume"),
+///     let mut next = || generator.as_mut().resume();
+///
+///     match next() {
+///         | GeneratorState::Yield(yielded) => assert_eq!(yielded, 1),
+///         | GeneratorState::Return(_) => panic!("unexpected return from resume"),
 ///     }
-///     match generator.as_mut().resume() {
-///         | GeneratorState::Return("foo") => {}
-///         | _ => panic!("unexpected yield from resume"),
+///     match next() {
+///         | GeneratorState::Yield(_) => panic!("unexpected yield from resume"),
+///         | GeneratorState::Return(returned) => assert_eq!(returned, "foo"),
 ///     }
 /// }
+/// ```
+///
+/// # `Generator` _vs._ `Iterator`
+///
+///   - a `Generator` can return a non-trivial value when exhausted,
+///     contrary to an `Iterator`,
+///
+///   - but they require to be `Pin`-ned in order to be
+///     [`poll`][`Generator::resume`]ed.
+///
+/// We thus have the following impls:
+///
+/// ```rust
+/// # macro_rules! ignore {($($t:tt)*) => ()} ignore! {
+/// impl<Item, F : Future> IntoIterator for Pin<&'_ mut GeneratorFn<Item, F>>
+///
+/// #[cfg(feature = "std")]
+/// impl<Item, F : Future> IntoIterator for Pin<Box<GeneratorFn<Item, F>>>
+///
+/// #[cfg(feature = "std")]
+/// impl<Item, R> Iterator for Pin<Box<dyn Generator<Yield = Item, Return = R> + '_>>
+/// # }
 /// ```
 pub
 trait Generator {

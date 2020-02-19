@@ -26,12 +26,12 @@
     allow(warnings),
 )]
 
-#![cfg_attr(not(feature = "alloc"),
+#![cfg_attr(not(feature = "std"),
     no_std,
 )]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
+#[cfg(feature = "std")]
+pub extern crate alloc;
 
 #[path = "public_prelude.rs"]
 pub

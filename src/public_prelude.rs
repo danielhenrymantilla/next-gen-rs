@@ -4,7 +4,9 @@
 pub use crate::{
     generator,
     gen_iter,
+    Generator,
     GeneratorState,
     mk_gen,
     stack_pinned,
 };
+pub use ::core::pin::Pin;

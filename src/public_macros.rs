@@ -36,7 +36,7 @@ macro_rules! stack_pinned {
     );
 }
 
-/// Instances a generator and pins it(required to be able to poll it).
+/// Instances a generator and pins it (required to be able to poll it).
 ///
 /// By default it pins to the stack, but by using `box` it can pin to the heap
 /// (necessary when wanting to return the generator itself).
@@ -81,15 +81,16 @@ macro_rules! mk_gen {
             box $generator:tt ( $($args:expr),* $(,)? )
         $(;)?
     ) => (
-        let generator = $generator;
-        let var = $crate::GeneratorFn::empty();
-        let mut $var = ::std::boxed::Box::pin(var);
-        $var .as_mut()
+        let mut var = $crate::alloc::boxed::Box::pin(
+            $crate::GeneratorFn::empty()
+        );
+        var .as_mut()
             .init(
-                generator,
+                $generator,
                 ($($args, )*),
             )
         ;
+        let $($mut)? $var = var;
     );
 
     (@input

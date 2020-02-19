@@ -44,7 +44,7 @@ impl<'pinned_generator, Item, F : Future> IntoIterator
     }
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(feature = "std")]
 impl<Item, F : Future> IntoIterator
     for Pin<::alloc::boxed::Box<GeneratorFn<Item, F>>>
 {
@@ -59,9 +59,9 @@ impl<Item, F : Future> IntoIterator
     }
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(feature = "std")]
 impl<Item, R> Iterator
-    for Pin<::alloc::boxed::Box<dyn Generator<Yield = Item, Return = R>>>
+    for Pin<::alloc::boxed::Box<dyn Generator<Yield = Item, Return = R> + '_>>
 {
     type Item = Item;
 
