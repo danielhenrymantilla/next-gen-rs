@@ -4,7 +4,7 @@ path = "mod.rs"
 
 [package]
 name = "next-gen_proc-macro"
-version = "0.0.9"
+version = "0.0.10"
 authors = ["Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>"]
 edition = "2018"
 
@@ -24,3 +24,4 @@ verbose-expansions = ["syn/extra-traits", ]
 
 [package.metadata.docs.rs]
 features = ["external_doc"]
+

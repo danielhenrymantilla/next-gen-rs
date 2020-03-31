@@ -49,6 +49,8 @@ mod waker;
 pub use self::generator::*;
 mod generator;
 
+extern crate proc_macro;
+
 #[doc(hidden)] pub use ::core;
 #[doc(hidden)] pub use ::proc_macro::next_gen_hack;
 pub use ::proc_macro::generator;
