@@ -25,7 +25,6 @@ impl<T> Default for CellOption<T> {
 
 impl<T> CellOption<T> {
     /// `Cell::new(None)`
-    #[allow(bad_style)]
     pub
     const None: Self = Self {
         is_some: Cell::new(false),
@@ -34,7 +33,6 @@ impl<T> CellOption<T> {
 
     /// `Cell::new(Some(value))`
     #[cfg(FALSE)]
-    #[allow(bad_style)]
     pub
     const
     fn Some (value: T)

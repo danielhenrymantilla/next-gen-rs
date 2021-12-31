@@ -1,8 +1,8 @@
-#[macro_use]
+pub use self::cell_option::CellOption;
+mod cell_option;
+
+pub(in crate)
 mod macros;
 
 pub(in crate)
-mod prelude;
-
-pub use self::cell_option::CellOption;
-mod cell_option;
+mod prelude_internal;

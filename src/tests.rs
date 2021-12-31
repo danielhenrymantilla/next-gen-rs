@@ -1,7 +1,13 @@
-use super::{*,
-    generator::__Internals_YieldSlot_DoNotUse__ as YieldSlot,
+use {
+    ::core::{
+        iter::FromIterator,
+    },
+    ::std::prelude::v1::*,
+    crate::{
+        __::__Internals_YieldSlot_DoNotUse__ as YieldSlot,
+    },
+    super::*,
 };
-use ::core::iter::FromIterator;
 
 macro_rules! assert_it_eq {(
     $left:expr, $right:expr $(, $($msg:expr $(,)?)?)?
@@ -75,10 +81,7 @@ fn range ()
 
 mod proc_macros {
     use super::*;
-    mod next_gen {
-        pub(in super) use crate::*;
-    }
-    use ::proc_macro::generator;
+    use ::next_gen_proc_macros::generator;
 
     #[test]
     fn range ()
@@ -187,9 +190,9 @@ mod proc_macros {
         }
     }
 
+    #[test]
     fn return_iterator_with_concrete_dyn_type ()
     {
-        use ::core::pin::Pin;
         trait Countdown {
             type Iter : Iterator<Item = u8>;
             fn countdown (self: &'_ Self) -> Self::Iter;
@@ -197,7 +200,7 @@ mod proc_macros {
         struct CountdownFrom(u8);
         enum Void {} type None = Option<Void>;
         impl Countdown for CountdownFrom {
-            type Iter = Pin<Box<dyn Generator<Yield = u8, Return = None>>>;
+            type Iter = Pin<Box<dyn Generator<(), Yield = u8, Return = None>>>;
             fn countdown (self: &'_ Self)
               -> Self::Iter
             {
@@ -209,7 +212,6 @@ mod proc_macros {
                         yield_!(current);
                         current = current.checked_sub(1)?;
                     }
-                    None
                 }
                 mk_gen!(let gen = box countdown(self.0));
                 gen

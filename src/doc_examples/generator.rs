@@ -15,8 +15,8 @@ fn main ()
 
     mk_gen!(let mut generator = countdown(3, "Boom!"));
     let mut next = || generator.as_mut().resume();
-    assert_eq!(next(), GeneratorState::Yield(3));
-    assert_eq!(next(), GeneratorState::Yield(2));
-    assert_eq!(next(), GeneratorState::Yield(1));
-    assert_eq!(next(), GeneratorState::Return("Boom!"));
+    assert_eq!(next(), GeneratorState::Yielded(3));
+    assert_eq!(next(), GeneratorState::Yielded(2));
+    assert_eq!(next(), GeneratorState::Yielded(1));
+    assert_eq!(next(), GeneratorState::Returned("Boom!"));
 }

@@ -3,7 +3,7 @@ fn main ()
     use ::next_gen::prelude::*;
 
     async fn countdown<Ret> (
-        __yield_slot__: next_gen::__Internals_YieldSlot_DoNotUse__<'_, u8>,
+        __yield_slot__: ::next_gen::__::__Internals_YieldSlot_DoNotUse__<'_, u8>,
         (count, value): (u8, Ret),
     ) -> Ret
     {
@@ -21,15 +21,15 @@ fn main ()
         value
     }
 
-    let generator = ::next_gen::GeneratorFn::empty();
+    let generator = ::next_gen::generator_fn::GeneratorFn::empty();
     ::next_gen::stack_pinned!(mut generator);
     generator
         .as_mut()
         .init(countdown, (3, "Boom!"))
     ;
     let mut next = || generator.as_mut().resume();
-    assert_eq!(next(), GeneratorState::Yield(3));
-    assert_eq!(next(), GeneratorState::Yield(2));
-    assert_eq!(next(), GeneratorState::Yield(1));
-    assert_eq!(next(), GeneratorState::Return("Boom!"));
+    assert_eq!(next(), GeneratorState::Yielded(3));
+    assert_eq!(next(), GeneratorState::Yielded(2));
+    assert_eq!(next(), GeneratorState::Yielded(1));
+    assert_eq!(next(), GeneratorState::Returned("Boom!"));
 }
