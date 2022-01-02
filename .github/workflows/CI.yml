@@ -55,10 +55,10 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Cargo build
-        uses: actions-rs/cargo@v1
-        working-directory: ./tests/nostd
+        uses: danielhenrymantilla/cargo@master
         with:
           command: build
+          working-directory: ./tests/nostd
 
 
   # == BUILD & TEST == #
