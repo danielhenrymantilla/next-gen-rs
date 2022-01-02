@@ -61,7 +61,7 @@ use_prelude!();
 /// # }
 /// ```
 pub
-trait Generator<ResumeArg> {
+trait Generator<ResumeArg = ()> {
     /// The type of value this generator yields.
     ///
     /// This associated type corresponds to the `yield_!` expression and the
