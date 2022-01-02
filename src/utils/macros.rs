@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 macro_rules! create_context {(
     $cx:ident
 ) => (
@@ -14,11 +16,13 @@ macro_rules! abort_with_msg {( $($msg:tt)* ) => ({
     loop {}
 })} pub(in crate) use abort_with_msg;
 
+#[allow(unused_macros)]
 macro_rules! emit {( $($item:item)* ) => (
     $($item)*
 )} pub(in crate) use emit;
 
-macro_rules! export_macros {(
+#[allow(unused_macros)]
+macro_rules! export_hidden_macros {(
     $(
         macro_rules ! $macro_name:ident $def:tt
     )*
@@ -28,4 +32,4 @@ macro_rules! export_macros {(
         macro_rules! $macro_name $def
         pub use $macro_name;
     )*
-)} pub(in crate) use export_macros;
+)} pub(in crate) use export_hidden_macros;

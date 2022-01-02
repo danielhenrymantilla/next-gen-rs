@@ -39,6 +39,28 @@ jobs:
           command: check
           args: ${{ matrix.cargo-locked }}
 
+  # no_std check
+  nostd-test:
+    name: 'Ensure crate is indeed `no_std` compatible.'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: default
+          override: true
+          toolchain: stable
+
+      - name: Clone repo
+        uses: actions/checkout@v2
+
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        working-directory: ./tests/nostd
+        with:
+          command: build
+
+
   # == BUILD & TEST == #
   build-and-test:
     name: Build and test

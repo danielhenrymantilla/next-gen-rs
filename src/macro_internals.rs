@@ -16,6 +16,6 @@ pub extern crate alloc;
 #[cfg(feature = "std")]
 pub extern crate std;
 
-macros::export_macros! {
+macros::export_hidden_macros! {
     /* … */
 }

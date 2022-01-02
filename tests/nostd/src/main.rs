@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+#[allow(unused)]
 use ::next_gen;
 
 /// This function is called on panic.

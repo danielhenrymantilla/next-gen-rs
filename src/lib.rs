@@ -26,6 +26,7 @@
 extern crate self as next_gen;
 
 macro_rules! use_prelude {() => (
+    #[allow(unused_imports)]
     use crate::utils::prelude_internal::*;
 )}
 
