@@ -17,7 +17,8 @@ use_prelude!();
 /// fn main ()
 /// {
 ///     #[generator(i32)]
-///     fn generator_fn () -> &'static str
+///     fn generator_fn ()
+///       -> &'static str
 ///     {
 ///         yield_!(1);
 ///         return "foo";
@@ -124,8 +125,8 @@ trait Generator<ResumeArg> {
 #[derive(
     Debug,
     Clone, Copy,
-    PartialEq, Eq,
     PartialOrd, Ord,
+    PartialEq, Eq,
     Hash
 )]
 pub
@@ -152,10 +153,14 @@ enum GeneratorState<Yield, Return = ()> {
 impl<Yield> GeneratorState<Yield> {
     /// Alias for `Returned(())`.
     #[allow(nonstandard_style)]
-    pub const Complete: Self = Self::Returned(());
+    pub
+    const Complete: Self = Self::Returned(());
 }
 
-impl<'a, ResumeArg, G : ?Sized + 'a> Generator<ResumeArg> for Pin<&'a mut G>
+impl<'a, ResumeArg, G : ?Sized + 'a>
+    Generator<ResumeArg>
+for
+    Pin<&'a mut G>
 where
     G : Generator<ResumeArg>,
 {
@@ -175,7 +180,10 @@ where
     }
 }
 
-impl<'a, ResumeArg, G : ?Sized + 'a> Generator<ResumeArg> for &'a mut G
+impl<'a, ResumeArg, G : ?Sized + 'a>
+    Generator<ResumeArg>
+for
+    &'a mut G
 where
     G : Generator<ResumeArg> + Unpin,
 {

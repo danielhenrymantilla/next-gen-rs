@@ -236,7 +236,9 @@ struct GeneratorFn<Item, F : Future> {
     _pin_sensitive: PhantomPinned,
 }
 
-impl<Item, F : Future> Drop for GeneratorFn<Item, F> {
+impl<Item, F : Future> Drop
+    for GeneratorFn<Item, F>
+{
     fn drop (self: &'_ mut Self)
     {
         let Self { ref mut future, ref item_slot, .. } = *self;
@@ -268,7 +270,8 @@ struct GeneratorPinnedFields<'pin, Item : 'pin, F : Future + 'pin> {
 }
 
 impl<Item, F : Future> GeneratorFn<Item, F> {
-    fn project (self: Pin<&'_ mut Self>) -> GeneratorPinnedFields<'_, Item, F>
+    fn project (self: Pin<&'_ mut Self>)
+      -> GeneratorPinnedFields<'_, Item, F>
     {
         unsafe {
             // # Safety
@@ -318,7 +321,8 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
     where
         Item : 'yield_slot,
     {
-        assert!(self.future.is_none(),
+        assert!(
+            self.future.is_none(),
             "GeneratorFn cannot be initialized multiple times!",
         );
         unsafe {
@@ -358,7 +362,9 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
     }
 }
 
-impl<Item, F : Future> Generator<()> for GeneratorFn<Item, F> {
+impl<Item, F : Future> Generator<()>
+    for GeneratorFn<Item, F>
+{
     type Yield = Item;
 
     type Return = F::Output;

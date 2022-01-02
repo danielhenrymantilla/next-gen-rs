@@ -135,7 +135,8 @@ macro_rules! mk_gen {
 /// type Answer = i32;
 ///
 /// #[generator(Question)]
-/// fn answer () -> Answer
+/// fn answer ()
+///   -> Answer
 /// {
 ///     yield_!("What is the answer to life, the universe and everything?");
 ///     42
@@ -180,7 +181,8 @@ macro_rules! mk_gen {
 /// type Answer = i32;
 ///
 /// #[generator(Question)]
-/// fn answer () -> Answer
+/// fn answer ()
+///   -> Answer
 /// {
 ///     yield_!("What is the answer to life, the universe and everything?");
 ///     42

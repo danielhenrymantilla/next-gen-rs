@@ -44,7 +44,9 @@ macro_rules! make_yield {
 #[test]
 fn basic ()
 {
-    async fn generator<'foo> (out: YieldSlot<'foo, u8>, _: ()) {
+    async
+    fn generator<'foo> (out: YieldSlot<'foo, u8>, _: ())
+    {
         make_yield!(out);
 
         yield_!(42);
@@ -62,7 +64,9 @@ fn basic ()
 #[test]
 fn range ()
 {
-    async fn range (out: YieldSlot<'_, u8>, (start, end): (u8, u8)) {
+    async
+    fn range (out: YieldSlot<'_, u8>, (start, end): (u8, u8))
+    {
         make_yield!(out);
 
         let mut current = start;
@@ -110,7 +114,8 @@ mod proc_macros {
         type Answer = i32;
 
         #[generator(Question)]
-        fn answer () -> Answer
+        fn answer ()
+          -> Answer
         {
             yield_!("What is the answer to life, the universe and everything?");
             42
@@ -195,7 +200,9 @@ mod proc_macros {
     {
         trait Countdown {
             type Iter : Iterator<Item = u8>;
-            fn countdown (self: &'_ Self) -> Self::Iter;
+            fn countdown (self: &'_ Self)
+              -> Self::Iter
+            ;
         }
         struct CountdownFrom(u8);
         enum Void {} type None = Option<Void>;
@@ -205,7 +212,8 @@ mod proc_macros {
               -> Self::Iter
             {
                 #[generator(u8)]
-                fn countdown (from: u8) -> Option<Void>
+                fn countdown (from: u8)
+                  -> Option<Void>
                 {
                     let mut current = from;
                     loop {

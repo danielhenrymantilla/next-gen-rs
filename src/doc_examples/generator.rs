@@ -3,7 +3,8 @@ fn main ()
     use ::next_gen::prelude::*;
 
     #[generator(u8)]
-    fn countdown<Ret> (count: u8, value: Ret) -> Ret
+    fn countdown<Ret> (count: u8, value: Ret)
+      -> Ret
     {
         let mut current = count;
         while let Some(next) = current.checked_sub(1) {

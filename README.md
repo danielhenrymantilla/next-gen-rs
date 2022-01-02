@@ -53,7 +53,8 @@ type None = Option<Void>;
 
 /// Generator over all the primes less or equal to `up_to`.
 #[generator(usize)]
-fn primes_up_to (up_to: usize) -> None
+fn primes_up_to (up_to: usize)
+  -> None
 {
     if up_to < 2 { return None; }
     let mut sieve = vec![true; up_to.checked_add(1).expect("Overflow")];
@@ -98,7 +99,7 @@ For instance, the following does not work, no matter how hard you try:
 use ::std::sync::Mutex;
 
 fn iter_locked (vec: &'_ Mutex<Vec<i32>>)
-  -> impl Iterator<Item = i32> + '_
+  -> impl '_ + Iterator<Item = i32>
 {
     ::std::iter::from_fn({
         let guard = vec.lock().unwrap();
@@ -117,7 +118,8 @@ But this works:
 use ::next_gen::prelude::*;
 use ::std::sync::Mutex;
 
-fn iter_locked (vec: &'_ Mutex<Vec<i32>>) -> impl Iterator<Item = i32> + '_
+fn iter_locked (vec: &'_ Mutex<Vec<i32>>)
+  -> impl '_ + Iterator<Item = i32>
 {
     #[generator(i32)]
     fn gen (mutex: &'_ Mutex<Vec<i32>>)
@@ -151,7 +153,8 @@ assert_eq!(iter.next(), None);
         type Item = T;
         type IntoIter = Pin<Box<dyn Generator<(), Yield = T, Return = ()> + 'static>>;
 
-        fn into_iter (self: Once<T>) -> Self::IntoIter
+        fn into_iter (self: Once<T>)
+          -> Self::IntoIter
         {
             #[generator(T)]
             fn gen<T> (Once(value): Once<T>)
