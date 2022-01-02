@@ -44,4 +44,6 @@ members = [
 ]
 
 [package.metadata.docs.rs]
-all-features = true
+features = [
+    "better-docs",
+]
