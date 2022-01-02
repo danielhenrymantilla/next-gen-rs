@@ -58,6 +58,7 @@ jobs:
         uses: danielhenrymantilla/cargo@master
         with:
           command: build
+          args: '--target x86_64-unknown-linux-gnu'
           working-directory: ./tests/nostd
 
 
