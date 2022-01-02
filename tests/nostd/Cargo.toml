@@ -1,0 +1,16 @@
+[package]
+name = "nostd_dependent"
+version = "0.0.0"
+authors = [
+    "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>",
+]
+edition = "2018"
+
+[dependencies.next-gen]
+path = "../.."
+default-features = false
+
+[profile.dev]
+panic = "abort"
+
+[workspace]

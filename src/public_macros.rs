@@ -15,7 +15,7 @@ macro_rules! stack_pinned {
             ///     there is no longer access to the original stack variable,
             ///     which is thus impossible to move or forget.
             extern {}
-            $crate::core::pin::Pin::new_unchecked($var)
+            $crate::__::core::pin::Pin::new_unchecked($var)
         };
     );
 
@@ -31,7 +31,7 @@ macro_rules! stack_pinned {
             ///     there is no longer access to the original stack variable,
             ///     which is thus impossible to move or forget.
             extern {}
-            $crate::core::pin::Pin::new_unchecked($var)
+            $crate::__::core::pin::Pin::new_unchecked($var)
         };
     );
 }
@@ -81,8 +81,8 @@ macro_rules! mk_gen {
             box $generator:tt ( $($args:expr),* $(,)? )
         $(;)?
     ) => (
-        let mut var = $crate::alloc::boxed::Box::pin(
-            $crate::GeneratorFn::empty()
+        let mut var = $crate::__::alloc::boxed::Box::pin(
+            $crate::generator_fn::GeneratorFn::empty()
         );
         var .as_mut()
             .init(
@@ -98,7 +98,7 @@ macro_rules! mk_gen {
             $generator:tt ( $($args:expr),* $(,)? )
         $(;)?
     ) => (
-        let var = $crate::GeneratorFn::empty();
+        let var = $crate::generator_fn::GeneratorFn::empty();
         $crate::stack_pinned!(mut var);
         var .as_mut()
             .init(
@@ -135,7 +135,8 @@ macro_rules! mk_gen {
 /// type Answer = i32;
 ///
 /// #[generator(Question)]
-/// fn answer () -> Answer
+/// fn answer ()
+///   -> Answer
 /// {
 ///     yield_!("What is the answer to life, the universe and everything?");
 ///     42
@@ -156,7 +157,7 @@ macro_rules! mk_gen {
 /// mk_gen!(let mut generator = answer());
 /// assert_eq!(
 ///     generator.as_mut().resume(),
-///     ::next_gen::GeneratorState::Yield(
+///     GeneratorState::Yielded(
 ///         "What is the answer to life, the universe and everything?"
 ///     ),
 /// );
@@ -180,7 +181,8 @@ macro_rules! mk_gen {
 /// type Answer = i32;
 ///
 /// #[generator(Question)]
-/// fn answer () -> Answer
+/// fn answer ()
+///   -> Answer
 /// {
 ///     yield_!("What is the answer to life, the universe and everything?");
 ///     42
@@ -210,19 +212,24 @@ macro_rules! gen_iter {
         for $pat:pat in $generator:tt $block:block
     ) => (match $generator { mut generator => {
         use $crate::{
-            core::pin::Pin,
-            Generator,
-            GeneratorState,
+            generator::{
+                Generator,
+                GeneratorState,
+            },
+            __::{
+                core::pin::Pin,
+            },
         };
         let mut resume_generator = || -> GeneratorState<_, _> {
             Generator::resume(
-                Pin::as_mut(&mut generator)
+                Pin::as_mut(&mut generator),
+                (),
             )
         };
         loop {
             match resume_generator() {
-                | GeneratorState::Yield($pat) => $block,
-                | GeneratorState::Return(ret) => break ret,
+                | GeneratorState::Yielded($pat) => $block,
+                | GeneratorState::Returned(ret) => break ret,
             }
         }
     }});

@@ -1,7 +1,13 @@
-use super::{*,
-    generator::__Internals_YieldSlot_DoNotUse__ as YieldSlot,
+use {
+    ::core::{
+        iter::FromIterator,
+    },
+    ::std::prelude::v1::*,
+    crate::{
+        __::__Internals_YieldSlot_DoNotUse__ as YieldSlot,
+    },
+    super::*,
 };
-use ::core::iter::FromIterator;
 
 macro_rules! assert_it_eq {(
     $left:expr, $right:expr $(, $($msg:expr $(,)?)?)?
@@ -38,7 +44,9 @@ macro_rules! make_yield {
 #[test]
 fn basic ()
 {
-    async fn generator<'foo> (out: YieldSlot<'foo, u8>, _: ()) {
+    async
+    fn generator<'foo> (out: YieldSlot<'foo, u8>, _: ())
+    {
         make_yield!(out);
 
         yield_!(42);
@@ -56,7 +64,9 @@ fn basic ()
 #[test]
 fn range ()
 {
-    async fn range (out: YieldSlot<'_, u8>, (start, end): (u8, u8)) {
+    async
+    fn range (out: YieldSlot<'_, u8>, (start, end): (u8, u8))
+    {
         make_yield!(out);
 
         let mut current = start;
@@ -75,10 +85,7 @@ fn range ()
 
 mod proc_macros {
     use super::*;
-    mod next_gen {
-        pub(in super) use crate::*;
-    }
-    use ::proc_macro::generator;
+    use ::next_gen_proc_macros::generator;
 
     #[test]
     fn range ()
@@ -107,7 +114,8 @@ mod proc_macros {
         type Answer = i32;
 
         #[generator(Question)]
-        fn answer () -> Answer
+        fn answer ()
+          -> Answer
         {
             yield_!("What is the answer to life, the universe and everything?");
             42
@@ -187,29 +195,31 @@ mod proc_macros {
         }
     }
 
+    #[test]
     fn return_iterator_with_concrete_dyn_type ()
     {
-        use ::core::pin::Pin;
         trait Countdown {
             type Iter : Iterator<Item = u8>;
-            fn countdown (self: &'_ Self) -> Self::Iter;
+            fn countdown (self: &'_ Self)
+              -> Self::Iter
+            ;
         }
         struct CountdownFrom(u8);
         enum Void {} type None = Option<Void>;
         impl Countdown for CountdownFrom {
-            type Iter = Pin<Box<dyn Generator<Yield = u8, Return = None>>>;
+            type Iter = Pin<Box<dyn Generator<(), Yield = u8, Return = None>>>;
             fn countdown (self: &'_ Self)
               -> Self::Iter
             {
                 #[generator(u8)]
-                fn countdown (from: u8) -> Option<Void>
+                fn countdown (from: u8)
+                  -> Option<Void>
                 {
                     let mut current = from;
                     loop {
                         yield_!(current);
                         current = current.checked_sub(1)?;
                     }
-                    None
                 }
                 mk_gen!(let gen = box countdown(self.0));
                 gen

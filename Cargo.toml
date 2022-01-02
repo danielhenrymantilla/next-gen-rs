@@ -1,35 +1,49 @@
+[[example]]
+name = "generator"
+path = "src/doc_examples/generator.rs"
+
+# Templated by `cargo-generate` using https://github.com/danielhenrymantilla/proc-macro-template
+
 [package]
 name = "next-gen"
-version = "0.0.10"
-authors = ["Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>"]
+authors = [
+    "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>",
+]
+version = "0.1.0-rc1"  # Keep in sync
 edition = "2018"
-license = "MIT"
-description = "Safe generators on stable Rust."
+
+license = "Zlib OR MIT OR Apache-2.0"
 repository = "https://github.com/danielhenrymantilla/next-gen-rs"
 documentation = "https://docs.rs/next-gen"
-readme = "README-crates-io.md"
+readme = "README.md"
 
+description = "Safe generators on stable Rust."
 keywords = ["generator", "yield", "coroutine", "async", "await"]
 categories = ["asynchronous", "concurrency", "rust-patterns"]
 
-[dependencies]
-
-[dependencies.proc_macro]
-package = "next-gen_proc-macro"
-version = "0.0.10"
-path = "src/proc_macro"
-
 [features]
-std = []
-external_doc = ["proc_macro/external_doc"]
-verbose-expansions = ["proc_macro/verbose-expansions"]
-
 default = ["std"]
 
-allow-warnings = []
-[package.metadata.docs.rs]
-features = ["external_doc"]
+better-docs = []  # allowed to break MSRV
+std = []
+ui-tests = ["better-docs"]
+verbose-expansions = ["next-gen-proc_macros/verbose-expansions"]
+
+[dependencies]
+unwind_safe.version = "0.1.0-rc1"
+
+[dependencies.next-gen-proc_macros]
+path = "src/proc_macros"
+version = "0.1.0-rc1"  # Keep in sync
+
+[dev-dependencies]
 
 [workspace]
-members = ["src/proc_macro"]
+members = [
+    "src/proc_macros",
+]
 
+[package.metadata.docs.rs]
+features = [
+    "better-docs",
+]

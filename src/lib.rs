@@ -1,22 +1,16 @@
-#![cfg_attr(feature = "external_doc",
-    feature(external_doc)
+#![cfg_attr(feature = "better-docs",
+    cfg_attr(all(), doc = include_str!("../README.md")),
 )]
-#![cfg_attr(feature = "external_doc",
-    doc(include = "../README.md")
-)]
-#![cfg_attr(not(feature = "external_doc"),
+#![cfg_attr(not(feature = "better-docs"),
     doc = "See [crates.io](https://crates.io/crates/next-gen)"
 )]
-#![cfg_attr(not(feature = "external_doc"),
+#![cfg_attr(not(feature = "better-docs"),
     doc = "for more info about this crate."
 )]
 
+#![allow(nonstandard_style)]
 #![warn(
-    future_incompatible,
-    rust_2018_compatibility,
     missing_docs,
-    clippy::cargo,
-    clippy::pedantic,
 )]
 #![deny(
     unused_must_use,
@@ -26,34 +20,70 @@
     allow(warnings),
 )]
 
-#![cfg_attr(not(feature = "std"),
-    no_std,
-)]
+#![no_std]
 
-#[cfg(feature = "std")]
-pub extern crate alloc;
+#[cfg(test)]
+extern crate self as next_gen;
 
-#[path = "public_prelude.rs"]
-pub
-mod prelude;
+macro_rules! use_prelude {() => (
+    #[allow(unused_imports)]
+    use crate::utils::prelude_internal::*;
+)}
 
-mod public_macros;
+use_prelude!();
 
-#[macro_use]
-mod utils;
+#[cfg(feature = "std")] macros::emit! {
+    extern crate alloc;
+    extern crate std;
+}
+
+/// Transforms a function with `yield_!` calls into a generator.
+#[cfg_attr(feature = "better-docs", cfg_attr(all(), doc = concat!(
+    "\n", "# Example",
+    "\n", "",
+    "\n", "```rust",
+    // "\n", "# const _: &str = ::core::stringify! {", "\n",
+    "\n", include_str!("doc_examples/generator.rs"),
+    // "\n", "# };",
+    "\n", "```",
+)))]
+///
+/// # Expansion
+///
+/// The above example expands to:
+#[cfg_attr(feature = "better-docs", cfg_attr(all(), doc = concat!(
+    "\n", "",
+    "\n", "```rust",
+    // "\n", "# const _: &str = ::core::stringify! {",
+    "\n", include_str!("doc_examples/generator_desugared.rs"),
+    // "\n", "# };",
+    "\n", "```",
+)))]
+pub use ::next_gen_proc_macros::generator;
+
+pub use {
+    // ::{
+    //     next_gen_proc_macros::generator,
+    // },
+    // self::{
+    //     // coroutine::*,
+    //     // generator::*,
+    //     // ops::{Generator, GeneratorState},
+    // },
+};
+
+pub mod generator;
+pub mod generator_fn;
+pub mod prelude;
 
 mod iter;
-
+mod public_macros;
+mod utils;
 mod waker;
 
-pub use self::generator::*;
-mod generator;
-
-extern crate proc_macro;
-
-#[doc(hidden)] pub use ::core;
-#[doc(hidden)] pub use ::proc_macro::next_gen_hack;
-pub use ::proc_macro::generator;
+#[path = "macro_internals.rs"]
+#[doc(hidden)] /** Not part of the public API */ pub
+mod __;
 
 #[cfg(test)]
 mod tests;

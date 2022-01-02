@@ -2,6 +2,23 @@
 
 Safe generators on stable Rust.
 
+[![Repository](https://img.shields.io/badge/repository-GitHub-brightgreen.svg)](
+https://github.com/danielhenrymantilla/next-gen-rs)
+[![Latest version](https://img.shields.io/crates/v/next-gen.svg)](
+https://crates.io/crates/next-gen)
+[![Documentation](https://docs.rs/next-gen/badge.svg)](
+https://docs.rs/next-gen)
+[![MSRV](https://img.shields.io/badge/MSRV-1.45.0-white)](
+https://gist.github.com/danielhenrymantilla/8e5b721b3929084562f8f65668920c33)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](
+https://github.com/rust-secure-code/safety-dance/)
+[![License](https://img.shields.io/crates/l/next-gen.svg)](
+https://github.com/danielhenrymantilla/next-gen-rs/blob/master/LICENSE-ZLIB)
+[![CI](https://github.com/danielhenrymantilla/next-gen-rs/workflows/CI/badge.svg)](
+https://github.com/danielhenrymantilla/next-gen-rs/actions)
+
+<!-- Templated by `cargo-generate` using https://github.com/danielhenrymantilla/proc-macro-template -->
+
 ## Examples
 
 ### Reimplementing a `range` iterator
@@ -36,7 +53,8 @@ type None = Option<Void>;
 
 /// Generator over all the primes less or equal to `up_to`.
 #[generator(usize)]
-fn primes_up_to (up_to: usize) -> None
+fn primes_up_to (up_to: usize)
+  -> None
 {
     if up_to < 2 { return None; }
     let mut sieve = vec![true; up_to.checked_add(1).expect("Overflow")];
@@ -81,7 +99,7 @@ For instance, the following does not work, no matter how hard you try:
 use ::std::sync::Mutex;
 
 fn iter_locked (vec: &'_ Mutex<Vec<i32>>)
-  -> impl Iterator<Item = i32> + '_
+  -> impl '_ + Iterator<Item = i32>
 {
     ::std::iter::from_fn({
         let guard = vec.lock().unwrap();
@@ -100,7 +118,8 @@ But this works:
 use ::next_gen::prelude::*;
 use ::std::sync::Mutex;
 
-fn iter_locked (vec: &'_ Mutex<Vec<i32>>) -> impl Iterator<Item = i32> + '_
+fn iter_locked (vec: &'_ Mutex<Vec<i32>>)
+  -> impl '_ + Iterator<Item = i32>
 {
     #[generator(i32)]
     fn gen (mutex: &'_ Mutex<Vec<i32>>)
@@ -124,7 +143,7 @@ assert_eq!(iter.next(), None);
 
   - If the `iter_locked()` function you are trying to implement is part of
     a trait definition and thus need to name the type, you can use
-    `Pin<Box<dyn Generator<Yield = i32, Return = ()> + '_>>`
+    `Pin<Box<dyn Generator<(), Yield = i32, Return = ()> + '_>>`
 
     ```rust
     use ::next_gen::prelude::*;
@@ -132,9 +151,10 @@ assert_eq!(iter.next(), None);
     struct Once<T>(T);
     impl<T : 'static> IntoIterator for Once<T> {
         type Item = T;
-        type IntoIter = Pin<Box<dyn Generator<Yield = T, Return = ()> + 'static>>;
+        type IntoIter = Pin<Box<dyn Generator<(), Yield = T, Return = ()> + 'static>>;
 
-        fn into_iter (self: Once<T>) -> Self::IntoIter
+        fn into_iter (self: Once<T>)
+          -> Self::IntoIter
         {
             #[generator(T)]
             fn gen<T> (Once(value): Once<T>)
@@ -187,6 +207,6 @@ next-gen = { version = "...", default-features = false }
 
 Since generators and coroutines rely on the same internals, one can derive a
 safe implementation of generators using the `async` / `await` machinery, which
-is only already in stable Rust
-(credits for the idea go to [@whatisaphone](https://github.com/whatisaphone)'s
-[`::genawaiter`](https://github.com/whatisaphone/genawaiter) crate, MIT licensed).
+is only already in stable Rust.
+
+A similar idea has also been implemented in <https://docs.rs/genawaiter>.
