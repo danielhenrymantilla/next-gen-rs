@@ -303,7 +303,7 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
                 drop_flag: CellOption::None,
             },
             future: None,
-            _pin_sensitive: <_>::default(),
+            _pin_sensitive: PhantomPinned,
         }
     }
 
