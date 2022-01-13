@@ -10,7 +10,7 @@ pub use {
     },
 };
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 pub extern crate alloc;
 
 #[cfg(feature = "std")]

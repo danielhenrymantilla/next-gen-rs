@@ -4,6 +4,7 @@ use {
         cell::Cell,
         future::Future,
         marker::PhantomPinned,
+        ops::Not,
         pin::Pin,
         task::{
             Context,
@@ -19,8 +20,11 @@ use {
             GeneratorFn,
         },
         utils::{
-            CellOption,
             macros,
+            poll_fn,
         },
     },
 };
+
+#[cfg(all(feature = "std", doc))]
+pub(in crate) use ::std::prelude::v1::*;

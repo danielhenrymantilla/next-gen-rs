@@ -16,7 +16,7 @@ use_prelude!();
 ///
 /// fn main ()
 /// {
-///     #[generator(i32)]
+///     #[generator(yield(i32))]
 ///     fn generator_fn ()
 ///       -> &'static str
 ///     {
@@ -26,7 +26,7 @@ use_prelude!();
 ///
 ///     mk_gen!(let mut generator = generator_fn());
 ///
-///     let mut next = || generator.as_mut().resume();
+///     let mut next = || generator.as_mut().resume(());
 ///
 ///     match next() {
 ///         | GeneratorState::Yielded(yielded) => assert_eq!(yielded, 1),
@@ -53,13 +53,14 @@ use_prelude!();
 /// # macro_rules! ignore {($($t:tt)*) => ()} ignore! {
 /// impl<Item, F : Future> IntoIterator for Pin<&'_ mut GeneratorFn<Item, F>>
 ///
-/// #[cfg(feature = "std")]
+/// #[cfg(feature = "alloc")]
 /// impl<Item, F : Future> IntoIterator for Pin<Box<GeneratorFn<Item, F>>>
 ///
-/// #[cfg(feature = "std")]
+/// #[cfg(feature = "alloc")]
 /// impl<Item, R> Iterator for Pin<Box<dyn Generator<Yield = Item, Return = R> + '_>>
 /// # }
 /// ```
+#[cfg_attr(feature = "better-docs", doc(notable_trait))]
 pub
 trait Generator<ResumeArg = ()> {
     /// The type of value this generator yields.
@@ -91,7 +92,7 @@ trait Generator<ResumeArg = ()> {
     /// The [`GeneratorState`] enum returned from this function indicates what
     /// state the generator is in upon returning.
     ///
-    /// If the [`Yield`][`GeneratorState::Yield`] variant is returned then the
+    /// If the [`Yield`][`GeneratorState::Yielded`] variant is returned then the
     /// generator has reached a suspension point and a value has been yielded
     /// out. Generators in this state are available for resumption at a later
     /// point.
@@ -107,21 +108,37 @@ trait Generator<ResumeArg = ()> {
     /// guaranteed to panic on resuming after [`Return`], this is not guaranteed
     /// for all implementations of the [`Generator`] trait.
     ///
-    /// [`Return`]: `GeneratorState::Return`
+    /// [`Return`]: `GeneratorState::Returned`
     fn resume (
         self: Pin<&'_ mut Self>,
         resume_arg: ResumeArg,
     ) -> GeneratorState<Self::Yield, Self::Return>
     ;
+
+    /// Same as [`.resume()`][`Generator::resume`], but with a `&mut Self`
+    /// receiver rather than a `Pin<&mut Self>` one, for convenience, thanks to
+    /// the `Unpin` bound.
+    ///
+    /// Basically `g.resume_unpin(arg)` is sugar for
+    /// `Pin::new(&mut g).resume(arg)`.
+    fn resume_unpin (
+        self: &'_ mut Self,
+        resume_arg: ResumeArg,
+    ) -> GeneratorState<Self::Yield, Self::Return>
+    where
+        Self : Sized + Unpin,
+    {
+        Pin::new(self).resume(resume_arg)
+    }
 }
 
 /// Value obtained when [polling][`Generator::resume`] a [`GeneratorFn`].
 ///
 /// This corresponds to:
 ///
-///   - either a [suspension point][`GeneratorState::Yield`],
+///   - either a [suspension point][`GeneratorState::Yielded`],
 ///
-///   - or a [termination point][`GeneratorState::Return`]
+///   - or a [termination point][`GeneratorState::Returned`]
 #[derive(
     Debug,
     Clone, Copy,
@@ -150,55 +167,69 @@ enum GeneratorState<Yield, Return = ()> {
     Returned(Return),
 }
 
-impl<Yield> GeneratorState<Yield> {
+impl<Yield> GeneratorState<Yield, ()> {
     /// Alias for `Returned(())`.
     #[allow(nonstandard_style)]
     pub
     const Complete: Self = Self::Returned(());
 }
 
-impl<'a, ResumeArg, G : ?Sized + 'a>
+// # TRANSITIVE IMPLS
+// ## `?Unpin`
+impl<ResumeArg, G : ?Sized>
     Generator<ResumeArg>
 for
-    Pin<&'a mut G>
+    Pin<&'_ mut G>
 where
     G : Generator<ResumeArg>,
 {
-    type Yield = G::Yield;
-    type Return = G::Return;
-
-    #[inline]
-    fn resume (
-        mut self: Pin<&'_ mut Pin<&'a mut G>>,
-        arg: ResumeArg,
-    ) -> GeneratorState<Self::Yield, Self::Return>
-    {
-        G::resume(
-            Pin::<&mut G>::as_mut(&mut *self),
-            arg,
-        )
-    }
+    transitive_impl_deferring_to!(|self| (*self).as_mut());
 }
-
-impl<'a, ResumeArg, G : ?Sized + 'a>
+#[cfg(feature = "alloc")]
+impl<ResumeArg, G : ?Sized>
     Generator<ResumeArg>
 for
-    &'a mut G
+    Pin<::alloc::boxed::Box<G>>
+where
+    G : Generator<ResumeArg>,
+{
+    transitive_impl_deferring_to!(|self| (*self).as_mut());
+}
+
+// ## `Unpin`
+impl<ResumeArg, G : ?Sized>
+    Generator<ResumeArg>
+for
+    &'_ mut G
 where
     G : Generator<ResumeArg> + Unpin,
 {
+    transitive_impl_deferring_to!(|self| Pin::new(&mut **self));
+}
+#[cfg(feature = "alloc")]
+impl<ResumeArg, G : ?Sized>
+    Generator<ResumeArg>
+for
+    ::alloc::boxed::Box<G>
+where
+    G : Generator<ResumeArg> + Unpin,
+{
+    transitive_impl_deferring_to!(|self| Pin::new(&mut **self));
+}
+
+// where:
+macro_rules! transitive_impl_deferring_to {(
+    |$self:tt| $expr:expr $(,)?
+) => (
     type Yield = G::Yield;
     type Return = G::Return;
 
     #[inline]
     fn resume (
-        mut self: Pin<&'_ mut &'a mut G>,
+        mut $self: Pin<&'_ mut Self>,
         arg: ResumeArg,
     ) -> GeneratorState<Self::Yield, Self::Return>
     {
-        G::resume(
-            Pin::<&mut G>::new(&mut *self),
-            arg,
-        )
+        <G as Generator<ResumeArg>>::resume($expr, arg)
     }
-}
+)} use transitive_impl_deferring_to;

@@ -1,3 +1,5 @@
+use_prelude!();
+
 /// Pins a local to the stack.
 ///
 /// This is used by [`mk_gen`]`!` to get a pollable generator without going
@@ -50,7 +52,7 @@ macro_rules! stack_pinned {
 /// ```rust
 /// use ::next_gen::prelude::*;
 ///
-/// #[generator(bool)]
+/// #[generator(yield(bool))]
 /// fn toggler (initial: bool)
 /// {
 ///     use ::core::ops::Not;
@@ -134,7 +136,7 @@ macro_rules! mk_gen {
 /// type Question = &'static str;
 /// type Answer = i32;
 ///
-/// #[generator(Question)]
+/// #[generator(yield(Question))]
 /// fn answer ()
 ///   -> Answer
 /// {
@@ -156,7 +158,7 @@ macro_rules! mk_gen {
 ///
 /// mk_gen!(let mut generator = answer());
 /// assert_eq!(
-///     generator.as_mut().resume(),
+///     generator.as_mut().resume(()),
 ///     GeneratorState::Yielded(
 ///         "What is the answer to life, the universe and everything?"
 ///     ),
@@ -180,7 +182,7 @@ macro_rules! mk_gen {
 /// type Question = &'static str;
 /// type Answer = i32;
 ///
-/// #[generator(Question)]
+/// #[generator(yield(Question))]
 /// fn answer ()
 ///   -> Answer
 /// {

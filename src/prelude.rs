@@ -16,6 +16,9 @@ pub use {
             Generator,
             GeneratorState,
         },
+        generator_fn::{
+            CallBoxed as _,
+        },
         mk_gen,
         stack_pinned,
     },

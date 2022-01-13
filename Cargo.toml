@@ -25,7 +25,8 @@ categories = ["asynchronous", "concurrency", "rust-patterns"]
 default = ["std"]
 
 better-docs = []  # allowed to break MSRV
-std = []
+std = ["alloc"]
+alloc = []
 ui-tests = ["better-docs"]
 verbose-expansions = ["next-gen-proc_macros/verbose-expansions"]
 

@@ -26,7 +26,7 @@ https://github.com/danielhenrymantilla/next-gen-rs/actions)
 ```rust
 use ::next_gen::prelude::*;
 
-#[generator(u8)]
+#[generator(yield(u8))]
 fn range (start: u8, end: u8)
 {
     let mut current = start;
@@ -52,7 +52,7 @@ enum Void {}
 type None = Option<Void>;
 
 /// Generator over all the primes less or equal to `up_to`.
-#[generator(usize)]
+#[generator(yield(usize))]
 fn primes_up_to (up_to: usize)
   -> None
 {
@@ -121,7 +121,7 @@ use ::std::sync::Mutex;
 fn iter_locked (vec: &'_ Mutex<Vec<i32>>)
   -> impl '_ + Iterator<Item = i32>
 {
-    #[generator(i32)]
+    #[generator(yield(i32))]
     fn gen (mutex: &'_ Mutex<Vec<i32>>)
     {
         let vec = mutex.lock().unwrap();
@@ -129,9 +129,7 @@ fn iter_locked (vec: &'_ Mutex<Vec<i32>>)
             yield_!(elem);
         }
     }
-    mk_gen!(let generator = box gen(vec));
-    generator
-        .into_iter()
+    gen.call_boxed((vec, )) // Pin<Box<impl '_ + Generator<Yield = i32>>>
 }
 
 let vec = Mutex::new(vec![42, 27]);
@@ -143,7 +141,7 @@ assert_eq!(iter.next(), None);
 
   - If the `iter_locked()` function you are trying to implement is part of
     a trait definition and thus need to name the type, you can use
-    `Pin<Box<dyn Generator<(), Yield = i32, Return = ()> + '_>>`
+    `Pin<Box<dyn '_ + Generator<Yield = i32, Return = ()>>>`
 
     ```rust
     use ::next_gen::prelude::*;
@@ -156,7 +154,7 @@ assert_eq!(iter.next(), None);
         fn into_iter (self: Once<T>)
           -> Self::IntoIter
         {
-            #[generator(T)]
+            #[generator(yield(T))]
             fn gen<T> (Once(value): Once<T>)
             {
                 yield_!(value);
@@ -190,9 +188,6 @@ Almost no `unsafe` is used, the exception being:
 
   - Using the pinning guarantee to extend a lifetime;
 
-  - A manual implementation of `Cell<Option<T>>` with a very straight-forward
-    safety invariant.
-
 ### `no_std` support
 
 This crates supports `#![no_std]`. For it, just disable the default `"std"`
@@ -200,7 +195,8 @@ feature:
 
 ```toml
 [dependencies]
-next-gen = { version = "...", default-features = false }
+next-gen.version = "..."
+next-gen.default-features = false  # <- ADD THIS
 ```
 
 #### Idea

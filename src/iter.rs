@@ -30,10 +30,12 @@ where
     }
 }
 
-impl<'pinned_generator, Item, F : Future> IntoIterator
-    for Pin<&'pinned_generator mut GeneratorFn<Item, F>>
+impl<'pinned_generator, Item, F : Future>
+    IntoIterator
+for
+    Pin<&'pinned_generator mut GeneratorFn<Item, F, ()>>
 {
-    type IntoIter = Iter<&'pinned_generator mut GeneratorFn<Item, F>>;
+    type IntoIter = Iter<&'pinned_generator mut GeneratorFn<Item, F, ()>>;
     type Item = Item;
 
     #[inline]
@@ -44,11 +46,14 @@ impl<'pinned_generator, Item, F : Future> IntoIterator
     }
 }
 
-#[cfg(feature = "std")]
-impl<Item, F : Future> IntoIterator
-    for Pin<::alloc::boxed::Box<GeneratorFn<Item, F>>>
+#[cfg(feature = "alloc")]
+impl<Item, F : Future>
+    IntoIterator
+for
+    Pin<::alloc::boxed::Box<GeneratorFn<Item, F, ()>>>
 {
-    type IntoIter = Iter<::alloc::boxed::Box<GeneratorFn<Item, F>>>;
+    type IntoIter = Iter<::alloc::boxed::Box<GeneratorFn<Item, F, ()>>>;
+
     type Item = Item;
 
     #[inline]
@@ -59,9 +64,11 @@ impl<Item, F : Future> IntoIterator
     }
 }
 
-#[cfg(feature = "std")]
-impl<Item, R> Iterator
-    for Pin<::alloc::boxed::Box<dyn Generator<(), Yield = Item, Return = R> + '_>>
+#[cfg(feature = "alloc")]
+impl<Item, R>
+    Iterator
+for
+    Pin<::alloc::boxed::Box<dyn '_ + Generator<(), Yield = Item, Return = R>>>
 {
     type Item = Item;
 
