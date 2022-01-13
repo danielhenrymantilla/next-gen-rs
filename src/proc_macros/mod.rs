@@ -106,9 +106,11 @@ fn generator_impl (
                         if input.parse::<Option<Token![as]>>()?.is_some() {
                             resume_pat.replace(input.parse()?);
                         }
-                        let _: Option<Token![,]> = input.parse()?;
                         resume.replace((resume_ty, resume_pat));
                     },
+                    // Slightly improve the error message for extraneous
+                    // trailing stuff.
+                    | _case if yield_ty.is_some() && resume.is_some() => break,
                     | _default => return Err(snoopy.error()),
                 }
                 let _: Option<Token![,]> = input.parse()?;
