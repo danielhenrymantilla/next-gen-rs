@@ -17,10 +17,16 @@ pub use {
             GeneratorExt as _,
             GeneratorState,
         },
+        mk_gen,
+        stack_pinned,
+    },
+};
+
+#[cfg(feature = "alloc")]
+pub use {
+    crate::{
         generator_fn::{
             CallBoxed as _,
         },
-        mk_gen,
-        stack_pinned,
     },
 };

@@ -718,7 +718,7 @@ fn g ()
     The "stacks" (storage for the local variables captured within non-terminal
     / non-tail recursive calls) are thus, in practice, state that crosses the
     `yield_!()` points, resulting in state captured by the `Generator`. And
-    since the `Generator` instance if `Box`ed, it means such stack ends up in
+    since the `Generator` instance is `Box`ed, it means such stack ends up in
     the heap, behind a pointer. This happens for each and every recursion step.
 
     This means that the stack has successfully been segmented (within each
