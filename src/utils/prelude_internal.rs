@@ -1,13 +1,16 @@
 pub(in crate)
 use {
-    ::core::{
-        cell::Cell,
-        future::Future,
-        marker::PhantomPinned,
-        pin::Pin,
-        task::{
-            Context,
-            Poll,
+    ::{
+        core::{
+            cell::Cell,
+            future::Future,
+            marker::PhantomPinned,
+            ops::Not,
+            pin::Pin,
+            task::{
+                Context,
+                Poll,
+            },
         },
     },
     crate::{
@@ -19,8 +22,11 @@ use {
             GeneratorFn,
         },
         utils::{
-            CellOption,
             macros,
+            poll_fn,
         },
     },
 };
+
+#[cfg(all(feature = "std", doc))]
+pub(in crate) use ::std::prelude::v1::*;

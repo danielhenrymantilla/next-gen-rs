@@ -1,6 +1,11 @@
 #![cfg_attr(feature = "better-docs",
-    cfg_attr(all(), doc = include_str!("../README.md")),
+    cfg_attr(all(), doc = include_str!("lib.md")),
 )]
+#![cfg_attr(feature = "nightly", feature(
+    // Nightly features.
+    doc_auto_cfg,
+    doc_notable_trait,
+))]
 #![cfg_attr(not(feature = "better-docs"),
     doc = "See [crates.io](https://crates.io/crates/next-gen)"
 )]
@@ -9,16 +14,9 @@
 )]
 
 #![allow(nonstandard_style)]
-#![warn(
-    missing_docs,
-)]
-#![deny(
-    unused_must_use,
-)]
-#![doc(test(attr(deny(warnings))))]
-#![cfg_attr(feature = "allow-warnings",
-    allow(warnings),
-)]
+#![warn(missing_docs)]
+#![deny(unused_must_use)]
+#![doc(test(attr(deny(warnings), allow(unused), deny(unused_must_use))))]
 
 #![no_std]
 
@@ -32,10 +30,10 @@ macro_rules! use_prelude {() => (
 
 use_prelude!();
 
-#[cfg(feature = "std")] macros::emit! {
-    extern crate alloc;
-    extern crate std;
-}
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
 
 /// Transforms a function with `yield_!` calls into a generator.
 #[cfg_attr(feature = "better-docs", cfg_attr(all(), doc = concat!(

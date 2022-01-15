@@ -1,4 +1,5 @@
-//! Internal types used by `#[generator]`-tagged functions.
+//! Internal types used by [`#[generator]`][`macro@crate::generator`]-tagged
+//! functions.
 
 use_prelude!();
 
@@ -21,8 +22,8 @@ mod internals {
     /// ```rust,no_run
     /// use ::next_gen::{__::__Internals_YieldSlot_DoNotUse__, gen_iter};
     ///
-    /// async fn generator (yield_slot: __Internals_YieldSlot_DoNotUse__<'_, u8>, _: ())
-    ///   -> __Internals_YieldSlot_DoNotUse__<'_, u8>
+    /// async fn generator (yield_slot: __Internals_YieldSlot_DoNotUse__<'_, u8, ()>, _: ())
+    ///   -> __Internals_YieldSlot_DoNotUse__<'_, u8, ()>
     /// {
     ///     yield_slot
     /// }
@@ -35,32 +36,66 @@ mod internals {
     ///     // unsoundness.
     /// };
     /// // <-- never reached "thanks" to the abort.
-    /// let _ = dangling_yield_slot.put(42); // write-dereference a dangling pointer !
+    /// let _ = dangling_yield_slot.__put(42); // write-dereference a dangling pointer !
     /// ```
     pub
-    struct YieldSlot<'yield_slot, Item : 'yield_slot> {
+    struct YieldSlot<'yield_slot, YieldedItem, ResumeArg = ()> {
         pub(in super)
-        item_slot: Pin<&'yield_slot ItemSlot<Item>>,
+        item_slot: &'yield_slot ItemSlot<YieldedItem, ResumeArg>,
     }
 }
 use internals::YieldSlot;
 
-impl<Item> Drop for YieldSlot<'_, Item> {
+impl<YieldedItem, ResumeArg>
+    Drop
+for
+    YieldSlot<'_, YieldedItem, ResumeArg>
+{
     fn drop (self: &'_ mut Self)
     {
-        self.item_slot.drop_flag.set(());
+        self.item_slot.yield_slot_dropped.set(true);
     }
 }
 
-struct ItemSlot<Item> {
-    value: CellOption<Item>,
-    drop_flag: CellOption<()>,
+enum TransferBox<YieldedItem, ResumeArg> {
+    YieldedItem(YieldedItem),
+    ResumeArg(ResumeArg),
+    Empty,
 }
 
-impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
-    #[inline]
-    fn new (item_slot: Pin<&'yield_slot ItemSlot<Item>>)
+/// No pinning projection
+impl<YieldedItem, ResumeArg>
+    Unpin
+for
+    TransferBox<YieldedItem, ResumeArg>
+{}
+
+impl<YieldedItem, ResumeArg> TransferBox<YieldedItem, ResumeArg> {
+    fn take (this: &'_ Cell<Self>)
       -> Self
+    {
+        this.replace(Self::Empty)
+    }
+}
+
+macro_rules! misusage {( $($tt:tt)* ) => (
+    ::core::format_args! {
+        "Misusage of a `YieldSlot`: {}", ::core::format_args!($($tt)*),
+    }
+)}
+
+struct ItemSlot<YieldedItem, ResumeArg> {
+    transfer_box: Cell<TransferBox<YieldedItem, ResumeArg>>,
+    yield_slot_dropped: Cell<bool>,
+}
+
+impl<'yield_slot, YieldedItem, ResumeArg>
+    YieldSlot<'yield_slot, YieldedItem, ResumeArg>
+{
+    #[inline]
+    fn new (
+        item_slot: &'yield_slot ItemSlot<YieldedItem, ResumeArg>,
+    ) -> YieldSlot<'yield_slot, YieldedItem, ResumeArg>
     {
         Self { item_slot }
     }
@@ -69,45 +104,48 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
     /// Fills the slot with a value, and returns an `.await`-able to be used as
     /// yield point.
     pub
-    fn put (self: &'_ Self, value: Item)
-      -> impl Future<Output = ()> + '_
+    fn __put (
+        self: &'_ YieldSlot<'yield_slot, YieldedItem, ResumeArg>,
+        yielded_item: YieldedItem,
+    ) -> impl '_ + Future<Output = ResumeArg>
     {
-        let prev: Option<Item> = self.item_slot.value.set(value);
-        debug_assert!(prev.is_none(), "slot was empty");
-        return WaitForClear { yield_slot: self };
-
-        /// "Dummy" `.await`-able:
-        ///
-        ///  1. The first time it is polled, the slot has just been filled
-        ///     (_c.f._, lines above); which triggers a `Pending` yield
-        ///     interruption, so that the outer thing polling it
-        ///     (GeneratorFn::resume), gets to extract the value out of the
-        ///     yield slot.
-        ///
-        ///  2. The second time it is polled, the slot is empty, so that the
-        ///     generator can resume its execution to fill it again or complete
-        ///     the iteration.
-        struct WaitForClear<'yield_slot, Item : 'yield_slot> {
-            yield_slot: &'yield_slot YieldSlot<'yield_slot, Item>,
-        }
-
-        impl<'yield_slot, Item> Future for WaitForClear<'yield_slot, Item> {
-            type Output = ();
-
-            fn poll (self: Pin<&'_ mut Self>, _: &'_ mut Context<'_>)
-              -> Poll<()>
-            {
-                if self.yield_slot.item_slot.value.is_some() {
+        let transfer_box = &self.item_slot.transfer_box;
+        let prev = transfer_box.replace(TransferBox::YieldedItem(yielded_item));
+        debug_assert!(
+            matches!(prev, TransferBox::Empty),
+            "{}", misusage!("slot was not empty"),
+        );
+        poll_fn(move |_| {
+            match TransferBox::take(transfer_box) {
+                | yielded_item @ TransferBox::YieldedItem { .. } => {
+                    transfer_box.set(yielded_item);
+                    // propagate a suspension up for `Generator::resume` to
+                    // handle.
                     Poll::Pending
-                } else {
-                    Poll::Ready(())
-                }
+                },
+                | TransferBox::ResumeArg(resume_arg) => Poll::Ready(resume_arg),
+                | TransferBox::Empty => panic!("{}", misusage!("incorrect poll")),
             }
+        })
+    }
+
+    /// Takes the initial `resume_arg` off the slot.
+    #[doc(hidden)]
+    pub
+    fn __take_initial_arg (
+        self: &'_ YieldSlot<'yield_slot, YieldedItem, ResumeArg>,
+    ) -> ResumeArg
+    {
+        match TransferBox::take(&self.item_slot.transfer_box) {
+            | TransferBox::ResumeArg(resume_arg) => resume_arg,
+            | _ => panic!("{}", misusage!("incorrect `take_initial_arg()`")),
         }
     }
 }
 
-/// An _instance_ of a `#[generator]`-tagged function.
+/// An _instance_ of a [`#[generator]`][gen]-tagged function.
+///
+/// [gen]: `macro@crate::generator`
 ///
 /// These are created in a two-step fashion:
 ///
@@ -115,7 +153,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 ///     which is to be [pinned][`Pin`].
 ///
 ///  2. Once it is [pinned][`Pin`], it can be [`.init()`][
-///     `GeneratorFn::init`]-ialized with a `#[generator]`-tagged function.
+///     `GeneratorFn::init`]-ialized with a [`#[generator]`][gen]-tagged function.
 ///
 /// As with any [`Generator`], for a [`GeneratorFn`] to be usable, it must have
 /// been previously [`Pin`]ned:
@@ -125,7 +163,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 ///     ```rust
 ///     use ::next_gen::{prelude::*, generator_fn::GeneratorFn};
 ///
-///     #[generator(u32)]
+///     #[generator(yield(u32))]
 ///     fn countdown (mut remaining: u32)
 ///     {
 ///         while let Some(next) = remaining.checked_sub(1) {
@@ -138,7 +176,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 ///     let mut generator = Box::pin(generator);
 ///     generator.as_mut().init(countdown, (3,));
 ///
-///     let mut next = || generator.as_mut().resume();
+///     let mut next = || generator.as_mut().resume(());
 ///     assert_eq!(next(), GeneratorState::Yielded(3));
 ///     assert_eq!(next(), GeneratorState::Yielded(2));
 ///     assert_eq!(next(), GeneratorState::Yielded(1));
@@ -150,7 +188,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 ///     ```rust
 ///     use ::next_gen::{prelude::*, generator_fn::GeneratorFn};
 ///
-///     #[generator(u32)]
+///     #[generator(yield(u32))]
 ///     fn countdown (mut remaining: u32)
 ///     {
 ///         while let Some(next) = remaining.checked_sub(1) {
@@ -162,7 +200,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 ///     let generator = GeneratorFn::empty();
 ///     stack_pinned!(mut generator);
 ///     generator.as_mut().init(countdown, (3,));
-///     let mut next = || generator.as_mut().resume();
+///     let mut next = || generator.as_mut().resume(());
 ///     assert_eq!(next(), GeneratorState::Yielded(3));
 ///     assert_eq!(next(), GeneratorState::Yielded(2));
 ///     assert_eq!(next(), GeneratorState::Yielded(1));
@@ -189,7 +227,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 /// fn countdown (count: u32)
 ///   -> impl Iterator<Item = u32> + 'static
 /// {
-///     #[generator(u32)]
+///     #[generator(yield(u32))]
 ///     fn countdown (mut remaining: u32)
 ///     {
 ///         while let Some(next) = remaining.checked_sub(1) {
@@ -210,7 +248,7 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 /// ```rust
 /// use ::next_gen::prelude::*;
 ///
-/// #[generator(u32)]
+/// #[generator(yield(u32))]
 /// fn countdown (mut remaining: u32)
 /// {
 ///     while let Some(next) = remaining.checked_sub(1) {
@@ -226,8 +264,8 @@ impl<'yield_slot, Item : 'yield_slot> YieldSlot<'yield_slot, Item> {
 /// );
 /// ```
 pub
-struct GeneratorFn<Item, F : Future> {
-    item_slot: ItemSlot<Item>,
+struct GeneratorFn<YieldedItem, F : Future, ResumeArg> {
+    item_slot: ItemSlot<YieldedItem, ResumeArg>,
 
     future: Option<F>,
 
@@ -236,18 +274,20 @@ struct GeneratorFn<Item, F : Future> {
     _pin_sensitive: PhantomPinned,
 }
 
-impl<Item, F : Future> Drop
-    for GeneratorFn<Item, F>
+impl<YieldedItem, F : Future, ResumeArg>
+    Drop
+for
+    GeneratorFn<YieldedItem, F, ResumeArg>
 {
     fn drop (self: &'_ mut Self)
     {
-        let Self { ref mut future, ref item_slot, .. } = *self;
+        let Self { ref mut future, ref mut item_slot, .. } = *self;
         ::unwind_safe::with_state(())
             .try_eval(move |&mut ()| {
                 // drop the future *in place*
                 *future = None;
             })
-            .finally(move |()| if item_slot.drop_flag.is_none() {
+            .finally(move |()| if item_slot.yield_slot_dropped.get_mut().not() {
                 macros::abort_with_msg!("\
                     `::next_gen` fatal runtime error: \
                     a `YieldSlot` was about to dangle!\
@@ -264,14 +304,16 @@ impl<Item, F : Future> Drop
     }
 }
 
-struct GeneratorPinnedFields<'pin, Item : 'pin, F : Future + 'pin> {
-    item_slot: Pin<&'pin ItemSlot<Item>>,
+struct GeneratorFnPinProjected<'pin, YieldedItem, F : Future, ResumeArg> {
+    item_slot: &'pin ItemSlot<YieldedItem, ResumeArg>,
     future: Pin<&'pin mut F>,
 }
 
-impl<Item, F : Future> GeneratorFn<Item, F> {
-    fn project (self: Pin<&'_ mut Self>)
-      -> GeneratorPinnedFields<'_, Item, F>
+impl<YieldedItem, F : Future, ResumeArg>
+    GeneratorFn<YieldedItem, F, ResumeArg>
+{
+    fn project (self: Pin<&'_ mut GeneratorFn<YieldedItem, F, ResumeArg>>)
+      -> GeneratorFnPinProjected<'_, YieldedItem, F, ResumeArg>
     {
         unsafe {
             // # Safety
@@ -284,8 +326,8 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
             //
             //   - no packing
             let this = self.get_unchecked_mut();
-            GeneratorPinnedFields {
-                item_slot: Pin::new_unchecked(&this.item_slot),
+            GeneratorFnPinProjected {
+                item_slot: &this.item_slot,
                 future: Pin::new_unchecked(
                     this.future
                         .as_mut()
@@ -295,31 +337,47 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
         }
     }
 
-    /// Reserves memory for an empty generator.
+    /// Reserves memory for an empty generator; to be [`Pin`]-ned afterwards.
+    ///
+    /// Splitting the initial creation of the `GeneratorFn` with its
+    /// `init`-instantiation is needed due to the self-referential nature of
+    /// a `GeneratorFn`'s constructor.
+    ///
+    /// Note that you do not need to call this function if using the handy
+    /// [`mk_gen!`] macro.
     pub
     fn empty ()
-      -> Self
+      -> GeneratorFn<YieldedItem, F, ResumeArg>
     {
         Self {
             item_slot: ItemSlot {
-                value: CellOption::None,
-                drop_flag: CellOption::None,
+                transfer_box: TransferBox::Empty.into(),
+                yield_slot_dropped: false.into(),
             },
             future: None,
             _pin_sensitive: PhantomPinned,
         }
     }
 
-    /// Fill the memory reserved by [`GeneratorFn::empty`]`()` with an instance
-    /// of the generator function / factory.
+    /// After [`Pin`]-ning the memory reserved by [`GeneratorFn::empty`]`()`
+    /// (through [`Box::pin`] or [`stack_pinned!`]), it can be properly
+    /// instanced by calling the `#[generator]`-annotated function.
+    ///
+    /// Splitting the initial creation of the `GeneratorFn` with its
+    /// `init`-instantiation is needed due to the self-referential nature of
+    /// a `GeneratorFn`'s constructor.
+    ///
+    /// Note that you do not need to call this function if using the handy
+    /// [`mk_gen!`] macro.
     pub
     fn init<'pin, 'yield_slot, Args> (
-        self: Pin<&'pin mut Self>,
-        factory: impl FnOnce(YieldSlot<'yield_slot, Item>, Args) -> F,
+        self: Pin<&'pin mut GeneratorFn<YieldedItem, F, ResumeArg>>,
+        generator_fn: impl FnOnce(YieldSlot<'yield_slot, YieldedItem, ResumeArg>, Args) -> F,
         args: Args,
     )
     where
-        Item : 'yield_slot,
+        YieldedItem : 'yield_slot,
+        ResumeArg : 'yield_slot,
     {
         assert!(
             self.future.is_none(),
@@ -339,57 +397,74 @@ impl<Item, F : Future> GeneratorFn<Item, F> {
             //     aborts to avoid any potential unsoundness.
             let this = self.get_unchecked_mut();
             let yield_slot =
-                YieldSlot::new(Pin::new_unchecked(
+                YieldSlot::new(
                     ::core::mem::transmute::<
-                        &'pin ItemSlot<Item>,
-                        &'yield_slot ItemSlot<Item>,
+                        &'pin ItemSlot<YieldedItem, ResumeArg>,
+                        &'yield_slot ItemSlot<YieldedItem, ResumeArg>,
                     >(
                         &this.item_slot
                     )
-                ))
+                )
             ;
-            this.future = Some(factory(yield_slot, args));
+            this.future = Some(generator_fn(yield_slot, args));
         }
     }
 
     /// Associated method version of [`Generator::resume`].
     #[inline]
     pub
-    fn resume (self: Pin<&'_ mut Self>)
-      -> GeneratorState<Item, F::Output>
+    fn resume (
+        self: Pin<&'_ mut GeneratorFn<YieldedItem, F, ResumeArg>>,
+        resume_arg: ResumeArg,
+    ) -> GeneratorState<YieldedItem, F::Output>
     {
-        <Self as Generator<()>>::resume(self, ())
+        <Self as Generator<ResumeArg>>::resume(self, resume_arg)
     }
 }
 
-impl<Item, F : Future> Generator<()>
-    for GeneratorFn<Item, F>
+impl<YieldedItem, F : Future, ResumeArg>
+    Generator<ResumeArg>
+for
+    GeneratorFn<YieldedItem, F, ResumeArg>
 {
-    type Yield = Item;
+    type Yield = YieldedItem;
 
     type Return = F::Output;
 
     fn resume (
         self: Pin<&'_ mut Self>,
-        _resume_arg: (),
-    ) -> GeneratorState<Item, F::Output>
+        resume_arg: ResumeArg,
+    ) -> GeneratorState<YieldedItem, F::Output>
     {
         let this = self.project(); // panics if uninit
+        let transfer_box = &this.item_slot.transfer_box;
+        let prev = transfer_box.replace(TransferBox::ResumeArg(resume_arg));
+        debug_assert!(
+            matches!(prev, TransferBox::Empty),
+            "When starting a resume, `TransferBox` is empty",
+        );
+
         macros::create_context!(cx);
         match this.future.poll(&mut cx) {
             | Poll::Pending => {
-                let value =
-                    this.item_slot
-                        .value
-                        .take()
-                        .expect("Missing item in yield_slot!")
-                ;
-                GeneratorState::Yielded(value)
+                match TransferBox::take(transfer_box)
+                {
+                    | TransferBox::YieldedItem(yielded_item) => {
+                        return GeneratorState::Yielded(yielded_item);
+                    },
+                    | _ => panic!("{}", misusage!(
+                        "missing `YieldedItem` in `transfer_box`",
+                    )),
+                }
             },
 
             | Poll::Ready(value) => {
-                GeneratorState::Returned(value)
-            }
+                return GeneratorState::Returned(value);
+            },
         }
     }
 }
+
+#[cfg(feature = "alloc")]
+pub use call_boxed::CallBoxed;
+mod call_boxed;

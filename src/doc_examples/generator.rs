@@ -2,7 +2,7 @@ fn main ()
 {
     use ::next_gen::prelude::*;
 
-    #[generator(u8)]
+    #[generator(yield(u8))]
     fn countdown<Ret> (count: u8, value: Ret)
       -> Ret
     {
@@ -15,7 +15,7 @@ fn main ()
     }
 
     mk_gen!(let mut generator = countdown(3, "Boom!"));
-    let mut next = || generator.as_mut().resume();
+    let mut next = || generator.as_mut().resume(());
     assert_eq!(next(), GeneratorState::Yielded(3));
     assert_eq!(next(), GeneratorState::Yielded(2));
     assert_eq!(next(), GeneratorState::Yielded(1));
