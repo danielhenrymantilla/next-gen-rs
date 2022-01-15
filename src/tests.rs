@@ -2,7 +2,7 @@ use {
     ::core::{
         iter::FromIterator,
     },
-    ::std::{*, prelude::v1::*},
+    ::std::{*, panic, prelude::v1::*},
     crate::{
         __::__Internals_YieldSlot_DoNotUse__ as YieldSlot,
     },
@@ -94,7 +94,7 @@ fn range ()
 }
 
 mod proc_macros {
-    use super::*;
+    use super::{*, panic};
     use ::next_gen_proc_macros::generator;
 
     #[test]
@@ -177,7 +177,7 @@ mod proc_macros {
     }
 
     mod adaptors {
-        use super::*;
+        use super::{*, panic};
 
         #[generator(yield(T))]
         fn filter<T> (

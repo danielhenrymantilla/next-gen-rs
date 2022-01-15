@@ -1,4 +1,6 @@
-#![feature(bench_black_box)]
+#![cfg_attr(feature = "better-docs",
+    feature(bench_black_box),
+)]
 
 use ::next_gen::prelude::*;
 
@@ -64,6 +66,7 @@ fn main ()
     );
 }
 
+#[cfg(feature = "better-docs")]
 #[test]
 #[ignore] // Naïve recursion overflows the stack.
 fn naive ()
