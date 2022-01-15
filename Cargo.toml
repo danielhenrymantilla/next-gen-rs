@@ -9,7 +9,7 @@ name = "next-gen"
 authors = [
     "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>",
 ]
-version = "0.1.0-rc3"  # Keep in sync
+version = "0.1.0-rc4"  # Keep in sync
 edition = "2018"
 rust-version = "1.45.0"
 
@@ -37,7 +37,7 @@ unwind_safe.version = "0.1.0"
 
 [dependencies.next-gen-proc_macros]
 path = "src/proc_macros"
-version = "0.1.0-rc3"  # Keep in sync
+version = "0.1.0-rc4"  # Keep in sync
 
 [dev-dependencies]
 
@@ -51,5 +51,5 @@ features = [
     "nightly",
 ]
 rustdoc-args = [
-    "-e", "fix-rustdoc.css",
+    "--html-before-content", "fix-docsrs-li-details-summary.html",
 ]
