@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "next-gen"
-version = "0.1.0-rc1"
+version = "0.1.0-rc2"
 dependencies = [
  "next-gen-proc_macros",
  "unwind_safe",
@@ -716,7 +716,7 @@ dependencies = [
 
 [[package]]
 name = "next-gen-proc_macros"
-version = "0.1.0-rc1"
+version = "0.1.0-rc2"
 dependencies = [
  "bat",
  "proc-macro2 1.0.36",
