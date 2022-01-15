@@ -10,8 +10,6 @@ https://crates.io/crates/next-gen)
 https://docs.rs/next-gen)
 [![MSRV](https://img.shields.io/badge/MSRV-1.45.0-white)](
 https://gist.github.com/danielhenrymantilla/8e5b721b3929084562f8f65668920c33)
-[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](
-https://github.com/rust-secure-code/safety-dance/)
 [![License](https://img.shields.io/crates/l/next-gen.svg)](
 https://github.com/danielhenrymantilla/next-gen-rs/blob/master/LICENSE-ZLIB)
 [![CI](https://github.com/danielhenrymantilla/next-gen-rs/workflows/CI/badge.svg)](
@@ -36,8 +34,8 @@ fn range (start: u8, end: u8)
 
 mk_gen!(let generator = range(3, 10));
 assert_eq!(
-    generator.into_iter().collect::<Vec<_>>(),
-    (3 .. 10).collect::<Vec<_>>(),
+    generator.collect::<Vec<_>>(),
+    (3.. 10).collect::<Vec<_>>(),
 );
 ```
 
@@ -58,7 +56,7 @@ fn primes_up_to (up_to: usize)
     let mut p: usize = 1;
     loop {
         p += 1 + sieve
-                    .get(p + 1 ..)?
+                    .get(p + 1..)?
                     .iter()
                     .position(|&is_prime| is_prime)?
         ;
@@ -67,7 +65,7 @@ fn primes_up_to (up_to: usize)
             continue
         };
         if p2 >= up_to { continue; }
-        sieve[p2 ..]
+        sieve[p2..]
             .iter_mut()
             .step_by(p)
             .for_each(|is_prime| *is_prime = false)
@@ -78,7 +76,7 @@ fn primes_up_to (up_to: usize)
 mk_gen!(let primes = primes_up_to(10_000));
 for prime in primes {
     assert!(
-        (2_usize ..)
+        (2_usize..)
             .take_while(|&n| n.saturating_mul(n) <= prime)
             .all(|n| prime % n != 0)
     );
@@ -513,7 +511,7 @@ type ShouldContinue = bool;
 #[generator(yield(i32), resume(ShouldContinue))]
 fn g ()
 {
-    for i in 0 .. {
+    for i in 0.. {
         let should_continue = yield_!(i);
         if should_continue.not() {
             break;
@@ -561,7 +559,7 @@ type ShouldContinue = bool;
 )]
 fn g ()
 {
-    for i in 0 .. {
+    for i in 0.. {
         if should_continue.not() {
             break;
         }
