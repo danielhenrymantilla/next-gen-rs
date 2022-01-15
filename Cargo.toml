@@ -9,7 +9,7 @@ name = "next-gen"
 authors = [
     "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>",
 ]
-version = "0.1.0-rc2"  # Keep in sync
+version = "0.1.0-rc3"  # Keep in sync
 edition = "2018"
 rust-version = "1.45.0"
 
@@ -25,6 +25,7 @@ categories = ["asynchronous", "concurrency", "rust-patterns"]
 [features]
 default = ["std"]
 
+nightly = ["better-docs"]  # unstable
 better-docs = []  # allowed to break MSRV
 std = ["alloc"]
 alloc = []
@@ -36,7 +37,7 @@ unwind_safe.version = "0.1.0"
 
 [dependencies.next-gen-proc_macros]
 path = "src/proc_macros"
-version = "0.1.0-rc2"  # Keep in sync
+version = "0.1.0-rc3"  # Keep in sync
 
 [dev-dependencies]
 
@@ -47,8 +48,8 @@ members = [
 
 [package.metadata.docs.rs]
 features = [
-    "better-docs",
+    "nightly",
 ]
 rustdoc-args = [
-    "-e fix-rustdoc.css",
+    "-e", "fix-rustdoc.css",
 ]

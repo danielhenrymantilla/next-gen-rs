@@ -107,7 +107,7 @@ use_prelude!();
 ///     [`.gen_into_iter()`][`GeneratorExt::gen_into_iter`] methods
 ///     to convert _any_ pinned generator (provided `ResumeArg = ()`) into an
 ///     interator.
-#[cfg_attr(feature = "better-docs", doc(notable_trait))]
+#[cfg_attr(feature = "nightly", doc(notable_trait))]
 pub
 trait Generator<ResumeArg = ()> {
     /// The type of value this generator yields.

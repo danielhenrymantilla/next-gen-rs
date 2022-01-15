@@ -1,5 +1,7 @@
 #![cfg_attr(feature = "better-docs",
     cfg_attr(all(), doc = include_str!("lib.md")),
+)]
+#![cfg_attr(feature = "nightly",
     feature(doc_notable_trait),
 )]
 #![cfg_attr(not(feature = "better-docs"),

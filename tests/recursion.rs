@@ -1,88 +1,125 @@
-#![cfg_attr(feature = "better-docs",
+#![cfg_attr(feature = "nightly",
     feature(bench_black_box),
 )]
 
-use ::next_gen::prelude::*;
-
-fn triangular (n: u64)
-  -> u64
-{
-    #[generator(yield(u64), resume(u64))]
-    fn triangular (n: u64)
-      -> u64
-    {
-        use yield_ as recurse;
-        if n == 0 {
-            0
-        } else {
-            n + recurse!(n - 1)
-        }
-    }
-
-    with_recurse(|arg| triangular.call_boxed((arg, )))(n)
-}
-
-/// where
-fn with_recurse<Arg, Gen, R>(
-    mut f: impl FnMut(Arg) -> Gen
-) -> impl FnOnce(Arg) -> R
-where
-    R : Default,
-    Gen : Generator<R, Yield = Arg, Return = R> + Unpin,
-{
-    move |arg: Arg| {
-        let mut stack = Vec::new();
-
-        let mut current = f(arg);
-        let mut res = R::default();
-
-        loop {
-            match current.resume_unpin(res) {
-                | GeneratorState::Yielded(arg) => {
-                    stack.push(current);
-                    current = f(arg);
-                    res = R::default();
-                }
-                | GeneratorState::Returned(real_res) => {
-                    match stack.pop() {
-                        | None => return real_res,
-                        | Some(top) => {
-                            current = top;
-                            res = real_res;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+const N: u64 = 1_u64 << 16;
+const OUTPUT: u64 = 2147516416;
 
 #[test]
-fn main ()
+#[ignore]
+fn naive_stack_state ()
 {
     assert_eq!(
-        140737496743936,
-        triangular(1_u64 << 24),
+        naive_stack_state::triangular(N),
+        OUTPUT,
     );
 }
 
-#[cfg(feature = "better-docs")]
 #[test]
-#[ignore] // Naïve recursion overflows the stack.
-fn naive ()
+fn auto_heap_state ()
 {
+    assert_eq!(
+        auto_heap_state::triangular(N),
+        OUTPUT,
+    );
+}
+
+mod naive_stack_state {
+    pub
     fn triangular (n: u64)
       -> u64
     {
         if n == 0 {
             0
         } else {
-            n + triangular(::core::hint::black_box(n - 1))
+            let recurse_arg = n - 1;
+            #[cfg(feature = "nightly")]
+            let recurse_arg = ::core::hint::black_box(recurse_arg);
+            n + triangular(recurse_arg)
+        }
+    }
+}
+
+mod auto_heap_state {
+    use ::next_gen::prelude::*;
+
+    /// A recursive computation can be seen as a "suspensible coroutine",
+    /// whereby, when needing to "compute-recurse" into (smaller) parameters,
+    /// that current computation just suspends and yields the new parameter
+    /// for which it requests a computation.
+    ///
+    /// The driver / "executor", thus starts with the initial argument, and
+    /// polls the suspensible coroutine until reaching a suspension point.
+    ///
+    /// Such suspension point gives the driver a new computation it needs to
+    /// perform (updates `arg`), and a new "customer" waiting for that new
+    /// result: that suspended computation. These stack onto each other as
+    /// we recurse, and when the innermost computation _completes_ / _returns_
+    /// rather than yield-enqueuing a new one, we can then feed that result to
+    /// the top-most suspended computation, _resuming_ it.
+    fn drive_recursion<Arg, Gen, R>(
+        arg: Arg,
+        mut start_computing: impl FnMut(Arg) -> Gen,
+    ) -> R
+    where
+        Gen : Generator<R, Yield = Arg, Return = R> + Unpin,
+        R : Default, // to feed the initial dummies.
+    {
+        // This is the "recursive state stack", when you think about this,
+        // and with this approach we automagically get it heap-allocated
+        // (the `Pin<Box<GeneratorFn…>>` state machines are the main things
+        // heap-allocating the "recursively captured local state".
+        // This vec is just storing these `Pin<Box<…>>` things, to avoid
+        // stack-allocating those (which naively recursing within this very body
+        // would achieve).
+        let mut suspended_computations = Vec::<Gen>::new();
+
+        let mut last_suspended_computation = start_computing(arg);
+        let mut computation_result = R::default(); // start with a dummy
+
+
+        loop {
+            match last_suspended_computation.resume_unpin(computation_result) {
+                // We reached `return`: completion of the current computation.
+                | GeneratorState::Returned(computation_result_) => {
+                    match suspended_computations.pop() {
+                        // If it was the outer-most computation, we've finished.
+                        | None => return computation_result_,
+                        // Otherwise, feed the current result to the outer
+                        // computation that had previously yield-requested the
+                        // current computation.
+                        | Some(suspended_computation) => {
+                            last_suspended_computation = suspended_computation;
+                            computation_result = computation_result_;
+                        },
+                    }
+                },
+                // We need to "compute-recurse" ourselves with this new `arg`
+                | GeneratorState::Yielded(arg) => {
+                    suspended_computations.push(last_suspended_computation);
+                    last_suspended_computation = start_computing(arg);
+                    computation_result = R::default();
+                },
+            }
         }
     }
 
-    assert_eq!(
-        140737496743936,
-        triangular(1_u64 << 24),
-    )
+    pub
+    fn triangular (n: u64)
+      -> u64
+    {
+        #[generator(yield(u64), resume(u64))]
+        fn triangular (n: u64)
+          -> u64
+        {
+            use yield_ as recurse;
+            if n == 0 {
+                0
+            } else {
+                n + recurse!(n - 1)
+            }
+        }
+
+        drive_recursion(n, |n| triangular.call_boxed((n, )))
+    }
 }
