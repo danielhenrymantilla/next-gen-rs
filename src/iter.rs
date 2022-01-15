@@ -2,14 +2,15 @@ use_prelude!();
 use ::core::ops::{Deref, DerefMut};
 
 pub
-struct Iter<P> (
-    Pin<P>,
+struct IterPin<P> (
+    pub(in crate) Pin<P>,
 )
 where
     P : DerefMut,
     P::Target : Generator<()>,
 ;
-impl<P> Iterator for Iter<P>
+
+impl<P> Iterator for IterPin<P>
 where
     P : DerefMut,
     P::Target : Generator<()>,
@@ -30,37 +31,57 @@ where
     }
 }
 
-impl<'pinned_generator, Item, F : Future>
-    IntoIterator
+impl<Item, R, F : Future<Output = R>>
+    Iterator
 for
-    Pin<&'pinned_generator mut GeneratorFn<Item, F, ()>>
+    Pin<&'_ mut GeneratorFn<Item, F, ()> >
 {
-    type IntoIter = Iter<&'pinned_generator mut GeneratorFn<Item, F, ()>>;
     type Item = Item;
 
-    #[inline]
-    fn into_iter (self: Self)
-      -> Self::IntoIter
+    fn next (self: &'_ mut Self)
+      -> Option<Self::Item>
     {
-        Iter(self)
+        match self.as_mut().resume(()) {
+            | GeneratorState::Yielded(x) => Some(x),
+            | GeneratorState::Returned(_) => None,
+        }
+    }
+}
+
+impl<Item, R>
+    Iterator
+for
+    Pin<&'_ mut (
+        dyn '_ + Generator<(), Yield = Item, Return = R>
+    )>
+{
+    type Item = Item;
+
+    fn next (self: &'_ mut Self)
+      -> Option<Self::Item>
+    {
+        match self.as_mut().resume(()) {
+            | GeneratorState::Yielded(x) => Some(x),
+            | GeneratorState::Returned(_) => None,
+        }
     }
 }
 
 #[cfg(feature = "alloc")]
-impl<Item, F : Future>
-    IntoIterator
+impl<Item, R, F : Future<Output = R>>
+    Iterator
 for
     Pin<::alloc::boxed::Box<GeneratorFn<Item, F, ()>>>
 {
-    type IntoIter = Iter<::alloc::boxed::Box<GeneratorFn<Item, F, ()>>>;
-
     type Item = Item;
 
-    #[inline]
-    fn into_iter (self: Self)
-      -> Self::IntoIter
+    fn next (self: &'_ mut Self)
+      -> Option<Self::Item>
     {
-        Iter(self)
+        match self.as_mut().resume(()) {
+            | GeneratorState::Yielded(x) => Some(x),
+            | GeneratorState::Returned(_) => None,
+        }
     }
 }
 
@@ -68,7 +89,9 @@ for
 impl<Item, R>
     Iterator
 for
-    Pin<::alloc::boxed::Box<dyn '_ + Generator<(), Yield = Item, Return = R>>>
+    Pin<::alloc::boxed::Box<
+        dyn '_ + Generator<(), Yield = Item, Return = R>
+    >>
 {
     type Item = Item;
 

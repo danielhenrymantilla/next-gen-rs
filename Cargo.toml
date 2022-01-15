@@ -31,7 +31,7 @@ ui-tests = ["better-docs"]
 verbose-expansions = ["next-gen-proc_macros/verbose-expansions"]
 
 [dependencies]
-unwind_safe.version = "0.1.0-rc1"
+unwind_safe.version = "0.1.0"
 
 [dependencies.next-gen-proc_macros]
 path = "src/proc_macros"

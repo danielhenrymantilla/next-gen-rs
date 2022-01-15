@@ -93,8 +93,10 @@ This is surely the most useful feature of a generator.
 Consider, for instance, the following problem:
 
 ```rust
+# #[cfg(any)] macro_rules! ignore {
 fn iter_locked (elems: &'_ Mutex<Set<i32>>)
   -> impl '_ + Iterator<Item = i32>
+# }
 ```
 
 #### Miserable attempts without generators
@@ -105,7 +107,12 @@ a signature!
 
   - The following fails:
 
-    ```rust
+    ```rust ,compile_fail
+    # use ::std::{
+    #     collections::BTreeSet as Set,
+    #     sync::Mutex,
+    # };
+    #
     fn iter_locked (mutexed_elems: &'_ Mutex<Set<i32>>)
       -> impl '_ + Iterator<Item = i32>
     {
@@ -122,7 +129,7 @@ a signature!
 
     <details>
 
-    ```rust
+    ```rust ,ignore
     error[E0515]: cannot return value referencing local variable `locked_elems`
       --> src/lib.rs:122:5
        |
@@ -143,7 +150,12 @@ a signature!
 
   - as well as this:
 
-    ```rust
+    ```rust ,compile_fail
+    # use ::std::{
+    #     collections::BTreeSet as Set,
+    #     sync::Mutex,
+    # };
+    #
     fn iter_locked (mutexed_elems: &'_ Mutex<Set<i32>>)
       -> impl '_ + Iterator<Item = i32>
     {
@@ -160,7 +172,7 @@ a signature!
 
     <details>
 
-    ```rust
+    ```rust ,ignore
     error[E0515]: cannot return value referencing local variable `locked_elems`
       --> src/lib.rs:144:5
        |
@@ -208,6 +220,8 @@ a signature!
     Rust not complaining:
 
     ```rust
+    # use ::std::sync::Mutex;
+    #
     fn iter_locked (mutexed_vec: &'_ Mutex<Vec<i32>>)
       -> impl '_ + Iterator<Item = i32>
     {
@@ -232,6 +246,10 @@ a signature!
 #### But with generators this is easy:
 
 ```rust
+# use ::std::{
+#     collections::BTreeSet as Set,
+#     sync::Mutex,
+# };
 use ::next_gen::prelude::*;
 
 #[generator(yield(i32))]
@@ -258,33 +276,40 @@ missing `Unpin` bound means): we need to get it pinned before it can be polled!
  1. Getting a `Future`:
 
     ```rust
+    # #[cfg(any())] macro_rules! ignore {
     let future = async { ... };
     // or
     let future = some_async_fn(...);
+    # }
     ```
 
   - Pinning an instantiated `Future` in the heap (`Box`ed):
 
     ```rust
+    # #[cfg(any())] macro_rules! ignore {
     // Pinning it in the heap (boxed):
     let mut pinned_future = Box::pin(future)
     // or, through an extension trait (`::futures::future::FutureExt`):
     let mut pinned_future = future.boxed() // this also incidentally `dyn`-erases the future.
+    # }
     ```
 
       - Now we can _return_ it, or poll it:
 
         ```rust
+        # #[cfg(any())] macro_rules! ignore {
         if true {
             pinned_future.as_mut().poll(...);
         }
         // and/or return it:
         return pinned_future;
+        # }
         ```
 
   - Pinning an instantiated `Future` in the stack (pinned to the local scope):
 
     ```rust
+    # #[cfg(any())] macro_rules! ignore {
     use ::some_lib::some_pinning_macro as stack_pinned;
     // Pinning it in the "stack"
     stack_pinned!(mut future);
@@ -293,13 +318,16 @@ missing `Unpin` bound means): we need to get it pinned before it can be polled!
 
     // Let's rename it for clarity:
     let mut pinned_future = future;
+    # }
     ```
 
       - Now we can poll it / use it within the current stack frame, **but we
         cannot return it**.
 
         ```rust
+        # #[cfg(any())] macro_rules! ignore {
         pinned_future.as_mut().poll(...)
+        # }
         ```
 
 Well, it turns out that for generators it's similar:
@@ -314,6 +342,7 @@ Well, it turns out that for generators it's similar:
     {
         yield_!(42);
     }
+    # let _ = foo;
     ```
 
  1. Instantiation requires pinning, and thus:
@@ -322,6 +351,7 @@ Well, it turns out that for generators it's similar:
         **But it cannot be returned**.
 
         ```rust
+        # #[cfg(any())] macro_rules! ignore {
         mk_gen!(let mut generator = foo());
 
         // can be used within the same scope
@@ -330,12 +360,14 @@ Well, it turns out that for generators it's similar:
 
         // but it can't be returned
         // return generator; /* Error, can't return borrow to local value */
+        # }
         ```
 
       - Heap-pinning: a bit more expensive, requires an `::alloc`ator or not
         being `no_std`, **but the so-pinned generator can be returned**.
 
         ```rust
+        # #[cfg(any())] macro_rules! ignore {
         mk_gen!(let mut generator = box foo());
 
         // can be used within the same scope
@@ -346,6 +378,7 @@ Well, it turns out that for generators it's similar:
 
         // and/or it can be returned
         return generator; // OK
+        # }
         ```
 
 So, back to our example, this is what we need to do:
@@ -356,11 +389,23 @@ ___
 
 ```rust
 use ::next_gen::prelude::*;
+# use ::std::{
+#     collections::BTreeSet as Set,
+#     sync::Mutex,
+# };
 
 /// We already have:
 #[generator(yield(i32))]
 fn gen_iter_locked (mutexed_elems: &'_ Mutex<Set<i32>>)
+# {
+#     let locked_elems = mutexed_elems.lock().unwrap();
+#     for elem in locked_elems.iter().copied() {
+#         yield_!(elem);
+#     }
+# }
+# #[cfg(any)] macro_rules! ignore {
 ...
+# }
 
 /// Now let's wrap-it so that it yields a nice iterator:
 fn iter_locked (mutexed_elems: &'_ Mutex<Set<i32>>)
@@ -392,10 +437,12 @@ assert_eq!(iter.next(), None);
     `Pin<Box<>>` layer:
 
     ```rust
+    # #[cfg(any())] macro_rules! ignore {
     // instead of
       -> impl '_ + Iterator<Item = i32>
     // write:
       -> Pin<Box<dyn '_ + Generator<Yield = i32, Return = ()>>>
+    # }
     ```
 
     <details><summary>An example</summary>
@@ -462,7 +509,7 @@ next-gen.version = "..."
 next-gen.default-features = false  # <- ADD THIS to disable `std`&`alloc` for `no_std` compat
 next-gen.features = [
     "alloc",  # If your no_std platform has access to allocators.
-  # "std",  # `default-features` bundles this.
+  ## "std",  # `default-features` bundles this.
 ]
 ```
 

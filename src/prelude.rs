@@ -14,6 +14,7 @@ pub use {
         gen_iter,
         generator::{
             Generator,
+            GeneratorExt as _,
             GeneratorState,
         },
         generator_fn::{

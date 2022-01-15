@@ -135,7 +135,7 @@ fn generator_impl (
 
     let __yield_slot__ = Ident::new(
         "__yield_slot__",
-        Span::mixed_site(),
+        ::proc_macro::Span::mixed_site().into(),
     );
 
     // Handle the signature

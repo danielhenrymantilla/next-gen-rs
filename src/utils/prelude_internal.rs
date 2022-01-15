@@ -1,14 +1,16 @@
 pub(in crate)
 use {
-    ::core::{
-        cell::Cell,
-        future::Future,
-        marker::PhantomPinned,
-        ops::Not,
-        pin::Pin,
-        task::{
-            Context,
-            Poll,
+    ::{
+        core::{
+            cell::Cell,
+            future::Future,
+            marker::PhantomPinned,
+            ops::Not,
+            pin::Pin,
+            task::{
+                Context,
+                Poll,
+            },
         },
     },
     crate::{

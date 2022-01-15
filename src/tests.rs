@@ -71,40 +71,6 @@ fn resume_args ()
 }
 
 #[test]
-fn resume_args_with_macro ()
-{
-    #[generator(yield(u8), resume(i32) as mut arg)]
-    fn generator<'foo> ()
-      -> Vec<i32>
-    {
-        let mut resume_args = vec![];
-        while arg != 0 {
-            resume_args.push(arg);
-            arg = yield_!(arg as _);
-        }
-
-        resume_args
-    }
-
-    mk_gen!(let mut generator = generator());
-    let mut resume = |arg| match generator.as_mut().resume(arg) {
-        | GeneratorState::Yielded(yielded_value) => {
-            assert_eq!(yielded_value as i32, arg);
-            None
-        },
-        | GeneratorState::Returned(ret) => {
-            assert_eq!(arg, 0);
-            Some(ret)
-        },
-    };
-
-    resume(12);
-    resume(17);
-    resume(47);
-    assert_eq!(resume(0).unwrap(), vec![12, 17, 47]);
-}
-
-#[test]
 fn range ()
 {
     async
@@ -130,6 +96,40 @@ fn range ()
 mod proc_macros {
     use super::*;
     use ::next_gen_proc_macros::generator;
+
+    #[test]
+    fn resume_args ()
+    {
+        #[generator(yield(u8), resume(i32) as mut arg)]
+        fn generator<'foo> ()
+          -> Vec<i32>
+        {
+            let mut resume_args = vec![];
+            while arg != 0 {
+                resume_args.push(arg);
+                arg = yield_!(arg as _);
+            }
+
+            resume_args
+        }
+
+        mk_gen!(let mut generator = generator());
+        let mut resume = |arg| match generator.as_mut().resume(arg) {
+            | GeneratorState::Yielded(yielded_value) => {
+                assert_eq!(yielded_value as i32, arg);
+                None
+            },
+            | GeneratorState::Returned(ret) => {
+                assert_eq!(arg, 0);
+                Some(ret)
+            },
+        };
+
+        resume(12);
+        resume(17);
+        resume(47);
+        assert_eq!(resume(0).unwrap(), vec![12, 17, 47]);
+    }
 
     #[test]
     fn range ()
@@ -242,22 +242,30 @@ mod proc_macros {
     #[test]
     fn return_iterator_with_concrete_dyn_type ()
     {
+        enum Void {}
+        type None = Option<Void>;
+
         trait Countdown {
             type Iter : Iterator<Item = u8>;
             fn countdown (self: &'_ Self)
               -> Self::Iter
             ;
         }
+
         struct CountdownFrom(u8);
-        enum Void {} type None = Option<Void>;
         impl Countdown for CountdownFrom {
-            type Iter = Pin<Box<dyn Generator<(), Yield = u8, Return = None>>>;
-            fn countdown (self: &'_ Self)
-              -> Self::Iter
+            type Iter = Pin<Box<
+                dyn Generator<(), Yield = u8, Return = None>
+            >>;
+
+            fn countdown (self: &'_ CountdownFrom)
+              -> Pin<Box<
+                    dyn Generator<(), Yield = u8, Return = None>
+                >>
             {
                 #[generator(yield(u8))]
                 fn countdown (from: u8)
-                  -> Option<Void>
+                  -> None
                 {
                     let mut current = from;
                     loop {
@@ -265,8 +273,8 @@ mod proc_macros {
                         current = current.checked_sub(1)?;
                     }
                 }
-                mk_gen!(let gen = box countdown(self.0));
-                gen
+                mk_gen!(let countdown = box countdown(self.0));
+                countdown
             }
         }
         assert_it_eq!(

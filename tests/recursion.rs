@@ -43,8 +43,8 @@ where
                 }
                 | GeneratorState::Returned(real_res) => {
                     match stack.pop() {
-                        None => return real_res,
-                        Some(top) => {
+                        | None => return real_res,
+                        | Some(top) => {
                             current = top;
                             res = real_res;
                         }
