@@ -1,9 +1,11 @@
 #![cfg_attr(feature = "better-docs",
     cfg_attr(all(), doc = include_str!("lib.md")),
 )]
-#![cfg_attr(feature = "nightly",
-    feature(doc_notable_trait),
-)]
+#![cfg_attr(feature = "nightly", feature(
+    // Nightly features.
+    doc_auto_cfg,
+    doc_notable_trait,
+))]
 #![cfg_attr(not(feature = "better-docs"),
     doc = "See [crates.io](https://crates.io/crates/next-gen)"
 )]
@@ -12,16 +14,9 @@
 )]
 
 #![allow(nonstandard_style)]
-#![warn(
-    missing_docs,
-)]
-#![deny(
-    unused_must_use,
-)]
+#![warn(missing_docs)]
+#![deny(unused_must_use)]
 #![doc(test(attr(deny(warnings), allow(unused), deny(unused_must_use))))]
-#![cfg_attr(feature = "allow-warnings",
-    allow(warnings),
-)]
 
 #![no_std]
 

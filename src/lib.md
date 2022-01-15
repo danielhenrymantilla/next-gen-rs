@@ -245,6 +245,8 @@ a signature!
 
 #### But with generators this is easy:
 
+<details>
+
 ```rust
 # use ::std::{
 #     collections::BTreeSet as Set,
@@ -472,9 +474,238 @@ assert_eq!(iter.next(), None);
 
     </details>
 
-See [`Generator`](
-https://docs.rs/next-gen/*/next_gen/prelude/trait.Generator.html) for more
-info.
+</details>
+
+## Resume arguments
+
+<details>
+
+This crate has been updated to support resume arguments: the `Generator` trait
+is now generic over a `ResumeArg` parameter (which defaults to `()`), and its
+`.resume(…)` method now takes a parameter of that type:
+
+```rust
+# #[cfg(any())] macro_rules! ignore {
+let _: GeneratorState<Yield, Return> = generator.as_mut().resume(resume_arg);
+# }
+```
+
+this makes it so the `yield_!(…)` expressions inside the generator evaluate to
+`ResumeArg` rather than `()`:
+
+```rust
+# #[cfg(any())] macro_rules! ignore {
+let _: ResumeArg = yield_!(value);
+# }
+```
+
+### Macro syntax
+
+In order to express this using the `#[generator]` attribute, add a
+`resume(Type)` parameter to it:
+
+```rust
+# use ::core::ops::Not as _;
+use ::next_gen::prelude::*;
+
+type ShouldContinue = bool;
+
+#[generator(yield(i32), resume(ShouldContinue))]
+fn g ()
+{
+    for i in 0 .. {
+        let should_continue = yield_!(i);
+        if should_continue.not() {
+            break;
+        }
+    }
+}
+
+mk_gen!(let mut generator = g());
+assert!(matches!(
+    generator.as_mut().resume(bool::default()), // <- this resume arg is being ignored
+    GeneratorState::Yielded(0),
+));
+assert!(matches!(
+    generator.as_mut().resume(true),
+    GeneratorState::Yielded(1),
+));
+assert!(matches!(
+    generator.as_mut().resume(true),
+    GeneratorState::Yielded(2),
+));
+assert!(matches!(
+    generator.as_mut().resume(true),
+    GeneratorState::Yielded(3),
+));
+
+assert!(matches!(
+    generator.as_mut().resume(false),
+    GeneratorState::Complete,
+));
+```
+
+If you don't want to ignore/disregard the first resume argument (the "start
+argument" we could call it), then you can append a `as <binding>` after the
+`resume(ResumeArgTy)` annotation:
+
+```rust
+# use ::core::ops::Not as _;
+use ::next_gen::prelude::*;
+
+type ShouldContinue = bool;
+
+#[generator(
+    yield(i32),
+    resume(ShouldContinue) as mut should_continue,
+)]
+fn g ()
+{
+    for i in 0 .. {
+        if should_continue.not() {
+            break;
+        }
+        should_continue = yield_!(i);
+    }
+}
+```
+
+  - <details><summary>A mind-bending example of recursion with an "automagically segmented stack"</summary>
+
+    ```rust
+    use ::next_gen::prelude::*;
+
+    /// A silly recursive function, computing the sum of integers up to `n`.
+    ///
+    /// If you know your math, you know this equals `n * (n + 1) / 2`.
+    ///
+    /// This result is quite "obvious" from the geometric representation:
+    ///
+    /// ```text
+    /// # . . . . .   <- Amount of #: 1
+    /// # # . . . .   <- Amount of #: 2
+    /// # # # . . .   <- Amount of #: 3
+    /// # # # # . .   <- Amount of #: 4
+    /// ⋮   …   ⋱ ⋮
+    /// # # # # # #   <- Amount of #: N
+    /// Height = N + 1         Total: 1 + 2 + … + N
+    /// Width  = N
+    /// Half the area of the "square": (N + 1) * N / 2
+    /// ```
+    ///
+    /// As you can see, computing the sum `1 + 2 + 3 + … + N` is the same as
+    /// counting the number of `#` in that diagram. And those `#` fill half a
+    /// "square". But it's actually not exactly a `N x N` square since we have
+    /// from `1` to `N` rows, that is, `N + 1` rows, and a width of `N`.
+    ///
+    /// This results in `(n + 1) * n` for the area of the "square", followed by
+    /// the `/ 2` halving operation.
+    fn triangular (n: u64)
+      -> u64
+    {
+        #[generator(yield(u64), resume(u64))]
+        fn triangular (n: u64)
+          -> u64
+        {
+            use yield_ as recurse;
+            if n == 0 {
+                0
+            } else {
+                n + recurse!(n - 1)
+            }
+        }
+
+        drive_recursion(n, |n| triangular.call_boxed((n, )))
+    }
+
+    const N: u64 = 10_000;
+    assert_eq!(
+        triangular(N),
+        N * (N + 1) / 2
+    );
+
+    // where the `drive_recursion` "runtime" is defined as:
+
+    /// A recursive computation can be seen as a "suspensible coroutine",
+    /// whereby, when needing to "compute-recurse" into new inputs,
+    /// that current computation just suspends and yields the new input
+    /// for which it requests a computation.
+    ///
+    /// The driver / "executor", thus starts with the initial input, and
+    /// polls the suspensible coroutine until reaching a suspension point.
+    ///
+    /// Such suspension point gives the driver a new computation it needs to
+    /// perform (updates `input`), and a new "customer" waiting for that new
+    /// result: that suspended computation. These stack onto each other as
+    /// we recurse, and when the innermost computation _completes_ / _returns_
+    /// rather than yield-enqueuing a new one, we can then feed that result to
+    /// the top-most suspended computation, _resuming_ it.
+    fn drive_recursion<Input, SuspendedComputation, Result> (
+        input: Input,
+        mut start_computing: impl FnMut(Input) -> Pin<Box<SuspendedComputation>>,
+    ) -> Result
+    where
+        SuspendedComputation
+            : Generator<
+                /* ResumedWith = */ Result, // recursive result
+                Yield = Input, // recursive "query"
+                Return = Result,
+            >
+        ,
+        Result : Default, // to feed the initial dummies.
+    {
+        // This is the "recursive state stack", when you think about this,
+        // and with this approach we automagically get it heap-allocated
+        // (the `Pin<Box<GeneratorFn…>>` state machines are the main things
+        // heap-allocating the "recursively captured local state".
+        // This vec is just storing these `Pin<Box<…>>` things, to avoid
+        // stack-allocating those (which naively recursing within this very body
+        // would achieve).
+        let mut suspended_computations = Vec::new();
+
+        let mut last_suspended_computation = start_computing(input);
+        let mut computation_result = Result::default(); // start with a dummy one
+
+        loop {
+            match last_suspended_computation.resume_unpin(computation_result) {
+                // We reached `return`: completion of the current computation.
+                | GeneratorState::Returned(computation_result_) => {
+                    match suspended_computations.pop() {
+                        // If it was the outer-most computation, we've finished.
+                        | None => return computation_result_,
+                        // Otherwise, feed the current result to the outer
+                        // computation that had previously yield-requested the
+                        // current computation.
+                        | Some(suspended_computation) => {
+                            last_suspended_computation = suspended_computation;
+                            computation_result = computation_result_;
+                        },
+                    }
+                },
+                // We need to "compute-recurse" ourselves with this new `arg`
+                | GeneratorState::Yielded(arg) => {
+                    suspended_computations.push(last_suspended_computation);
+                    last_suspended_computation = start_computing(arg);
+                    computation_result = Result::default();
+                },
+            }
+        }
+    }
+    ```
+
+    The "stacks" (storage for the local variables captured within non-terminal
+    / non-tail recursive calls) are thus, in practice, state that crosses the
+    `yield_!()` points, resulting in state captured by the `Generator`. And
+    since the `Generator` instance if `Box`ed, it means such stack ends up in
+    the heap, behind a pointer. This happens for each and every recursion step.
+
+    This means that the stack has successfully been segmented (within each
+    `Generator` instance) into the heap; which is otherwise a cumbersome manual
+    process that is nonetheless needed for non-trivial recursive functions.
+
+    </details>
+
+</details>
 
 ## Features
 

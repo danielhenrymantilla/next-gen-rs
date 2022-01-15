@@ -63,6 +63,7 @@ use super::*;
 /// mk_gen!(let mut gen = box generator_fn(Param()));
 /// let _ = gen.as_mut().resume(ResumeArg());
 /// ```
+#[cfg(feature = "alloc")]
 pub trait CallBoxed<'yield_slot, YieldedItem, ResumeArg, Args> {
     ///
     type CallBoxed;

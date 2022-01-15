@@ -202,37 +202,32 @@ macro_rules! mk_gen {
 #[macro_export]
 macro_rules! gen_iter {
     (
-        for $pat:pat in $generator:tt ($($args:expr),* $(,)?) $block:block
+        for $pat:pat
+            in $generator:tt ($($args:expr),* $(,)?)
+        $block:block
     ) => ({
-        $crate::mk_gen!(let generator = $generator ($($args),*));
-        $crate::gen_iter!(
-            for $pat in generator $block
-        )
+        $crate::mk_gen! {
+            let generator = $generator ($($args),*)
+        }
+        $crate::gen_iter! {
+            for $pat in generator
+                $block
+        }
     });
 
     (
         for $pat:pat in $generator:tt $block:block
-    ) => (match $generator { mut generator => {
-        use $crate::{
-            generator::{
-                Generator,
-                GeneratorState,
-            },
-            __::{
-                core::pin::Pin,
-            },
-        };
-        let mut resume_generator = || -> GeneratorState<_, _> {
-            Generator::resume(
-                Pin::as_mut(&mut generator),
-                (),
-            )
-        };
-        loop {
-            match resume_generator() {
-                | GeneratorState::Yielded($pat) => $block,
-                | GeneratorState::Returned(ret) => break ret,
+    ) => (
+        match $generator { mut generator => loop {
+            match
+                $crate::generator::Generator::resume(
+                    $crate::__::core::pin::Pin::as_mut(&mut generator),
+                    (),
+                )
+            {
+                | $crate::generator::GeneratorState::Yielded($pat) => $block,
+                | $crate::generator::GeneratorState::Returned(ret) => break ret,
             }
-        }
-    }});
+        }}
+    );
 }
