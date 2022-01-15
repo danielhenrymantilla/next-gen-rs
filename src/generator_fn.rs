@@ -465,5 +465,6 @@ for
     }
 }
 
+#[cfg(feature = "alloc")]
 pub use call_boxed::CallBoxed;
 mod call_boxed;
