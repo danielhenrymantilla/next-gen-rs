@@ -954,9 +954,18 @@ dependencies = [
 
 [[package]]
 name = "rand_core"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0905b6b7079ec73b314d4c748701f6931eb79fd97c668caa3f1899b22b32c6db"
+checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
+dependencies = [
+ "rand_core 0.4.2",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
 
 [[package]]
 name = "rand_core"
@@ -985,7 +994,7 @@ dependencies = [
  "cloudabi",
  "fuchsia-zircon",
  "libc",
- "rand_core 0.3.0",
+ "rand_core 0.3.1",
  "winapi 0.3.9",
 ]
 
