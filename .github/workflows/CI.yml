@@ -49,6 +49,14 @@ jobs:
         if: matrix.cargo-locked != '--locked'
         run: cargo update -v
 
+      # See https://github.com/rust-lang/cargo/issues/10303
+      - name: cargo fetch (≤1.45.0 compatible)
+        uses: actions-rs/cargo@v1
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+        with:
+          command: fetch
+
       - name: Cargo check
         uses: actions-rs/cargo@v1
         with:
@@ -69,6 +77,14 @@ jobs:
 
       - name: Clone repo
         uses: actions/checkout@v2
+
+      # See https://github.com/rust-lang/cargo/issues/10303
+      - name: cargo fetch (≤1.45.0 compatible)
+        uses: actions-rs/cargo@v1
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+        with:
+          command: fetch
 
       - name: Cargo build
         uses: danielhenrymantilla/cargo@master
@@ -112,6 +128,14 @@ jobs:
       - name: Clone repo
         uses: actions/checkout@v2
 
+      # See https://github.com/rust-lang/cargo/issues/10303
+      - name: cargo fetch (≤1.45.0 compatible)
+        uses: actions-rs/cargo@v1
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+        with:
+          command: fetch
+
       - name: Cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -133,6 +157,14 @@ jobs:
 
       - name: Clone repo
         uses: actions/checkout@v2
+
+      # See https://github.com/rust-lang/cargo/issues/10303
+      - name: cargo fetch (≤1.45.0 compatible)
+        uses: actions-rs/cargo@v1
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+        with:
+          command: fetch
 
       - name: Cargo UI test
         uses: actions-rs/cargo@v1
