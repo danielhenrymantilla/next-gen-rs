@@ -661,12 +661,6 @@ dependencies = [
 
 [[package]]
 name = "linked-hash-map"
-version = "0.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83f7ff3baae999fdf921cccf54b61842bb3b26868d50d02dff48052ebec8dd79"
-
-[[package]]
-name = "linked-hash-map"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d2aab0478615bb586559b0114d94dd8eca4fdbb73b443adcb0d00b61692b4bf"
@@ -1114,12 +1108,12 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.8.0"
+version = "0.8.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb5428c48d1cdc140b460b7180a8940c191e752aea36eefe0cc76104195a16ca"
+checksum = "ae3e2dd40a7cdc18ca80db804b7f461a39bb721160a85c9a1fa30134bf3c02a5"
 dependencies = [
  "dtoa",
- "linked-hash-map 0.5.0",
+ "linked-hash-map",
  "serde",
  "yaml-rust",
 ]
@@ -1464,5 +1458,5 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57ab38ee1a4a266ed033496cf9af1828d8d6e6c1cfa5f643a2809effcae4d628"
 dependencies = [
- "linked-hash-map 0.0.9",
+ "linked-hash-map",
 ]
