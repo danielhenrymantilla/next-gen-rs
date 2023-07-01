@@ -381,3 +381,34 @@ for
 where
     G : Generator<ResumeArg>,
 {}
+
+/// Ensure that the [`Send`] trait is only implemented for [`Generator`]s whose
+/// locals also implement [`Send`].
+/// ```compile_fail
+/// use ::next_gen::prelude::*;
+/// use ::std::cell::Cell;
+/// use ::std::iter::FromIterator;
+///
+/// fn non_send ()
+/// {
+///     #[generator(yield(u8))]
+///     fn range (start: u8, end: u8)
+///     {
+///         let mut current: Cell<u8> = start.into();
+///         while current.get() < end {
+///             yield_!(current.get());
+///             *current.get_mut() += 1;
+///         }
+///     }
+///
+///     mk_gen!(let mut generator = box range(1, 8));
+///     assert_eq!(generator.as_mut().resume(()), GeneratorState::Yielded(1));
+///     std::thread::spawn(move || {
+///       assert_eq!(
+///         generator.into_iter().collect::<Vec<_>>(),
+///         Vec::from_iter(2 .. 8),
+///       )
+///     }).join().unwrap();
+/// }
+/// ```
+fn _compile_error_test() {}

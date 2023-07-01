@@ -89,6 +89,14 @@ struct ItemSlot<YieldedItem, ResumeArg> {
     yield_slot_dropped: Cell<bool>,
 }
 
+/// SAFETY: The item slot will only non-empty while it is pinned. It is safe to
+/// send while empty.
+unsafe impl<YieldedItem, ResumeArg> Send for ItemSlot<YieldedItem, ResumeArg> {}
+
+/// SAFETY: The item slot's cells can only be mutated by [`GeneratorFn::resume`],
+/// which accepts a unique reference to the `GeneratorFn`.
+unsafe impl<YieldedItem, ResumeArg> Sync for ItemSlot<YieldedItem, ResumeArg> {}
+
 impl<'yield_slot, YieldedItem, ResumeArg>
     YieldSlot<'yield_slot, YieldedItem, ResumeArg>
 {
@@ -107,15 +115,17 @@ impl<'yield_slot, YieldedItem, ResumeArg>
     fn __put (
         self: &'_ YieldSlot<'yield_slot, YieldedItem, ResumeArg>,
         yielded_item: YieldedItem,
-    ) -> impl '_ + Future<Output = ResumeArg>
+    ) -> impl '_ + Future<Output = ResumeArg> + Send
     {
-        let transfer_box = &self.item_slot.transfer_box;
+        let item_slot = &self.item_slot;
+        let transfer_box = &item_slot.transfer_box;
         let prev = transfer_box.replace(TransferBox::YieldedItem(yielded_item));
         debug_assert!(
             matches!(prev, TransferBox::Empty),
             "{}", misusage!("slot was not empty"),
         );
         poll_fn(move |_| {
+            let transfer_box = &item_slot.transfer_box;
             match TransferBox::take(transfer_box) {
                 | yielded_item @ TransferBox::YieldedItem { .. } => {
                     transfer_box.set(yielded_item);
