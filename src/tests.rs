@@ -283,8 +283,130 @@ mod proc_macros {
             [3, 2, 1, 0],
         );
     }
-}
 
+    /// Ensure that the [`Send`] trait is implemented when the [`Generator`]s
+    /// does not use any non-[`Send`] types.
+    #[test]
+    fn send() {
+        #[generator(yield(u8))]
+        fn range(start: u8, end: u8) {
+            let mut current = start;
+            while current < end {
+                yield_!(current);
+                current += 1;
+            }
+        }
+
+        mk_gen!(let mut generator = box range(1, 8));
+        assert_eq!(generator.as_mut().resume(()), GeneratorState::Yielded(1));
+        std::thread::spawn(move || {
+            assert_it_eq!(generator, Vec::from_iter(2..8),);
+        })
+        .join()
+        .unwrap();
+    }
+
+    /// Ensure that the [`Send`] trait is implemented when the [`Generator`]s
+    /// arguments are not [`Send`], as long as the arguments are not held across
+    /// [`yield_`].
+    #[test]
+    fn non_send_arg() {
+      #[generator(yield(u8))]
+      fn range(start: Cell<u8>, end: u8) {
+          let mut current: u8 = start.get();
+          drop(start);
+          while current < end {
+              yield_!(current);
+              current += 1;
+          }
+      }
+      mk_gen!(let mut generator = box range(Cell::new(1), 8));
+      assert_eq!(generator.as_mut().resume(()), GeneratorState::Yielded(1));
+      std::thread::spawn(move || {
+          assert_eq!(
+              generator.into_iter().collect::<Vec<_>>(),
+              Vec::from_iter(2..8),
+          )
+      })
+      .join()
+      .unwrap();
+    }
+
+    /// Ensure that the [`Send`] trait is implemented when the [`Generator`]s
+    /// yields a value that is not [`Send`], as long as the value is not held
+    /// across [`yield_`].
+    #[test]
+    fn non_send_yield() {
+      #[generator(yield(Cell<u8>))]
+      fn range(start: u8, end: u8) {
+          let mut current: u8 = start;
+          while current < end {
+              yield_!(Cell::new(current));
+              current += 1;
+          }
+      }
+      mk_gen!(let mut generator = box range(1, 8));
+      match generator.as_mut().resume(()) {
+          GeneratorState::Yielded(x) => {
+              assert_eq!(x.get(), 1);
+          },
+          _ => {
+              panic!("expected yield");
+          },
+      };
+      std::thread::spawn(move || {
+          assert_eq!(
+              generator
+                  .into_iter()
+                  .map(|cell| cell.get())
+                  .collect::<Vec<_>>(),
+              Vec::from_iter(2..8),
+          )
+      })
+      .join()
+      .unwrap();
+    }
+
+    /// Ensure that the [`Send`] trait is implemented when the [`Generator`]s
+    /// has a resume argument that is not [`Send`], as long as the resume
+    /// argument is not held across [`yield_`].
+    #[test]
+    fn non_send_resume() {
+      #[generator(yield(u8), resume(Cell<u8>))]
+      fn range(start: u8, end: u8) {
+          let mut current: u8 = start;
+          while current < end {
+              let step = yield_!(current);
+              current += step.get();
+          }
+      }
+      mk_gen!(let mut generator = box range(1, 8));
+      match generator.as_mut().resume(Cell::new(1)) {
+          GeneratorState::Yielded(x) => {
+              assert_eq!(x, 1);
+          },
+          _ => {
+              panic!("expected yield");
+          },
+      };
+      std::thread::spawn(move || {
+          let mut got = Vec::new();
+          loop {
+              match generator.as_mut().resume(Cell::new(1)) {
+                  GeneratorState::Yielded(x) => {
+                      got.push(x);
+                  },
+                  GeneratorState::Returned(()) => {
+                      break;
+                  },
+              }
+          }
+          assert_eq!(got, Vec::from_iter(2..8),)
+      })
+      .join()
+      .unwrap();
+    }
+}
 
 macro_rules! assert_it_eq {(
     $left:expr, $right:expr $(, $($msg:expr $(,)?)?)?
